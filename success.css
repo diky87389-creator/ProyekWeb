@@ -235,12 +235,12 @@ p {
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 4px 12px rgba(62, 147, 97, 0.2);
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .button.button-primary:hover {

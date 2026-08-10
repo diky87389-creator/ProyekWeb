@@ -176,11 +176,12 @@ button, .button {
   background: linear-gradient(135deg, var(--primary), var(--accent));
   color: #fff;
   border: none;
-  border-radius: var(--button-radius);
-  padding: var(--button-padding);
+  border-radius: 999px;
+  padding: 1rem 2rem;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: var(--button-transition);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 4px 12px rgba(62, 147, 97, 0.2);
   display: inline-flex;
   align-items: center;
@@ -321,21 +322,26 @@ button, .button {
 
 .product-card button {
   width: 100%;
-  border-radius: 1rem;
   border: none;
-  background: var(--primary);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: #fff;
-  padding: 0.95rem 1rem;
+  padding: 1rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(62, 147, 97, 0.2);
 }
 
 .product-card button:hover {
-  background: #2f6d42;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(62, 147, 97, 0.3);
 }
 
 .product-card button:active {
-  transform: scale(0.99);
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(62, 147, 97, 0.2);
 }
 
 .site-footer {
