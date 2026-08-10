@@ -77,11 +77,18 @@ body {
   font-size: 0.95rem;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .button {
   font: inherit;
   border: none;
   border-radius: 999px;
-  padding: 0.95rem 1.4rem;
+  padding: 0.75rem 1.5rem;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -91,9 +98,15 @@ body {
 }
 
 .button-secondary {
-  background: var(--surface);
-  color: var(--primary-strong);
-  border: 1px solid rgba(60, 138, 78, 0.18);
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button-secondary:hover {
+  background: rgba(16, 185, 129, 0.18);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
 }
 
 .button-primary {
