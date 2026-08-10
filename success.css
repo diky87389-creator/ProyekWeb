@@ -201,11 +201,21 @@ p {
 
 .button-outline {
   width: 100%;
-  border: 1px solid rgba(62, 147, 97, 0.18);
-  background: transparent;
-  color: var(--primary-strong);
-  padding: 0.95rem 1rem;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  background: rgba(16, 185, 129, 0.06);
+  color: #10b981;
+  padding: 0.75rem 1.5rem;
   border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button-outline:hover {
+  background: rgba(16, 185, 129, 0.14);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
 }
 
 @media (max-width: 660px) {
