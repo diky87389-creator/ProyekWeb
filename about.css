@@ -92,15 +92,18 @@ h1 {
 .site-nav a {
   color: var(--text);
   text-decoration: none;
-  padding: 0.75rem 1rem;
+  padding: 0.6rem 1.1rem;
   border-radius: 999px;
-  transition: background 0.2s ease, color 0.2s ease;
+  font-weight: 600;
+  font-size: 0.92rem;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .site-nav a.active,
 .site-nav a:hover {
-  background: rgba(62, 147, 95, 0.12);
-  color: var(--primary-dark);
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  transform: translateY(-1px);
 }
 
 .user-menu {
@@ -114,9 +117,19 @@ h1 {
 .user-menu button {
   border: none;
   background: transparent;
-  color: var(--primary-dark);
+  color: #10b981;
   font-weight: 600;
+  font-size: 0.92rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.user-menu a:hover,
+.user-menu button:hover {
+  background: rgba(16, 185, 129, 0.12);
+  transform: translateY(-1px);
 }
 
 .hero-card {
@@ -196,8 +209,16 @@ h1 {
 }
 
 .footer-inner a {
-  color: var(--primary-dark);
+  color: #10b981;
   text-decoration: none;
+  font-weight: 600;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.footer-inner a:hover {
+  background: rgba(16, 185, 129, 0.12);
 }
 
 @media (max-width: 940px) {
