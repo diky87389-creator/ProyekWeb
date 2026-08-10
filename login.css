@@ -6,6 +6,7 @@
   --muted: #5f755f;
   --primary: #3c925d;
   --primary-dark: #2d693f;
+  --accent: #82c98d;
   --border: rgba(66, 136, 82, 0.18);
   --shadow: 0 30px 70px rgba(38, 88, 56, 0.12);
 }
@@ -111,9 +112,30 @@ body {
 }
 
 .button-primary {
-  background: linear-gradient(135deg, var(--primary), #82c98d);
+  background: linear-gradient(135deg, var(--primary), var(--accent));
   color: #fff;
-  box-shadow: 0 16px 32px rgba(37, 92, 52, 0.16);
+  border: none;
+  border-radius: 999px;
+  padding: 1rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(62, 147, 97, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(62, 147, 97, 0.3);
+}
+
+.button-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(62, 147, 97, 0.2);
 }
 
 .auth-footer {

@@ -96,6 +96,33 @@ body {
   border: 1px solid rgba(60, 138, 78, 0.18);
 }
 
+.button-primary {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 1rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(62, 147, 97, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(62, 147, 97, 0.3);
+}
+
+.button-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(62, 147, 97, 0.2);
+}
+
 .order-card {
   background: var(--surface);
   border-radius: 1.75rem;
