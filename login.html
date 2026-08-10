@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="login.css" />
+</head>
+<body>
+  <main class="auth-page">
+    <section class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-mark">WS</div>
+        <div>
+          <h1>Masuk</h1>
+          <p>Gunakan email dan kata sandi Anda untuk melanjutkan belanja.</p>
+        </div>
+      </div>
+        
+      <form id="login-form" class="auth-form">
+        <label for="login-email">Email</label>
+        <input id="login-email" name="loginEmail" type="email" placeholder="contoh@email.com" required />
+
+        <label for="login-password">Kata Sandi</label>
+        <input id="login-password" name="password" type="password" placeholder="Masukkan kata sandi" required />
+
+        <button class="button button-primary" type="submit">Masuk</button>
+      </form>
+
+      <p class="auth-footer">Belum punya akun? <a href="daftar.html">Daftar di sini</a></p>
+    </section>
+
+    <div class="toast" id="login-toast"></div>
+  </main>
+
+  <script src="login.js"></script>
+</body>
+</html>

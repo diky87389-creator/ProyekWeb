@@ -1,0 +1,238 @@
+:root {
+  --bg: #edf8ef;
+  --surface: #ffffff;
+  --surface-soft: #f5fbf5;
+  --text: #153924;
+  --muted: #5d7a65;
+  --primary: #3f9862;
+  --primary-dark: #266144;
+  --border: rgba(73, 144, 90, 0.18);
+  --shadow: 0 28px 60px rgba(51, 101, 64, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top left, rgba(111, 193, 119, 0.16), transparent 30%),
+              radial-gradient(circle at bottom right, rgba(72, 126, 80, 0.12), transparent 35%),
+              var(--bg);
+  color: var(--text);
+}
+
+.container {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255,255,255,0.98);
+  border-bottom: 1px solid rgba(75, 148, 90, 0.16);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem 0;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand-mark {
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  font-weight: 700;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  color: var(--text);
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.site-nav a:hover,
+.site-nav a.active {
+  background: rgba(62, 147, 95, 0.14);
+  color: var(--primary-dark);
+}
+
+.user-actions {
+  display: flex;
+  align-items: center;
+}
+
+.button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.95rem 1.5rem;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button-secondary {
+  background: #ffffff;
+  color: var(--primary-dark);
+  box-shadow: 0 12px 24px rgba(46, 97, 58, 0.08);
+  border: 1px solid rgba(73, 144, 90, 0.18);
+}
+
+.profile-page {
+  padding: 2.5rem 0 3rem;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr;
+  gap: 1.75rem;
+}
+
+.profile-card,
+.activity-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.75rem;
+  box-shadow: var(--shadow);
+  padding: 2rem;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.profile-card h2,
+.card-title h2 {
+  margin: 0.35rem 0 0;
+  font-size: clamp(1.8rem, 2.5vw, 2.4rem);
+}
+
+.profile-details,
+.login-history {
+  display: grid;
+  gap: 1rem;
+}
+
+.detail-row,
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 1.25rem;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.detail-row strong,
+.history-item strong {
+  color: var(--text);
+}
+
+.profile-badge {
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  background: rgba(75, 148, 90, 0.14);
+  color: var(--primary-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.card-title {
+  margin-bottom: 1rem;
+}
+
+.card-copy {
+  margin: 0 0 1.75rem;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.page-footer {
+  padding: 2rem 0;
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+.footer-inner a {
+  color: var(--primary-dark);
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .site-nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .button {
+    width: 100%;
+  }
+}

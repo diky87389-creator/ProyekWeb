@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profil Akun - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="profile.css" />
+</head>
+<body>
+  <header class="page-header">
+    <div class="container header-inner">
+      <div class="brand-group">
+        <div class="brand-mark">WS</div>
+        <div>
+          <p class="eyebrow">Warung Sayur Diky</p>
+          <h1>Profil Akun</h1>
+        </div>
+      </div>
+
+      <nav class="site-nav" aria-label="Navigasi utama">
+        <a href="index.html">Beranda</a>
+        <a href="keranjang.html">Keranjang</a>
+        <a href="about.html">Tentang Kami</a>
+        <a href="contact.html">Kontak</a>
+        <a href="profile.html" class="active">Profil</a>
+      </nav>
+
+      <div class="user-actions">
+        <div class="logout-actions">
+          <button id="logout-fast-button" class="button button-secondary" type="button">Logout Cepat</button>
+          <button id="logout-clean-button" class="button button-secondary" type="button">Logout Bersih Total</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container profile-page">
+    <section class="profile-grid">
+      <article class="profile-card">
+        <div class="profile-header">
+          <div>
+            <p class="eyebrow">Akun Anda</p>
+            <h2 id="user-name">Nama Lengkap</h2>
+          </div>
+          <div class="profile-badge">Aktif</div>
+        </div>
+
+        <div class="profile-details">
+          <div class="detail-row">
+            <span>Kontak</span>
+            <strong id="user-contact">-</strong>
+          </div>
+          <div class="detail-row">
+            <span>Email</span>
+            <strong id="user-email">-</strong>
+          </div>
+          <div class="detail-row">
+            <span>Terakhir Login</span>
+            <strong id="user-login-time">-</strong>
+          </div>
+          <div class="detail-row">
+            <span>ID Pengguna</span>
+            <strong id="user-id">-</strong>
+          </div>
+        </div>
+      </article>
+
+      <article class="activity-card">
+        <div class="card-title">
+          <p class="eyebrow">Riwayat Login</p>
+          <h2>Detail sesi terbaru</h2>
+        </div>
+        <p class="card-copy">Informasi sesi Anda tersimpan secara lokal dan hanya dapat diakses jika Anda sedang terautentikasi.</p>
+        <div class="login-history">
+          <div class="history-item">
+            <span>Waktu masuk</span>
+            <strong id="history-login-time">-</strong>
+          </div>
+          <div class="history-item">
+            <span>Status</span>
+            <strong>Terhubung</strong>
+          </div>
+          <div class="history-item">
+            <span>Mode akses</span>
+            <strong>Web lokal</strong>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <div class="container footer-inner">
+      <p>Warung Sayur Diky &copy; 2026. Belanja sayur segar jadi lebih mudah.</p>
+      <a href="contact.html">Hubungi Kami</a>
+    </div>
+  </footer>
+
+  <script src="profile.js"></script>
+</body>
+</html>

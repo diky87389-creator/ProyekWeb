@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daftar - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="daftar.css" />
+</head>
+<body>
+  <main class="auth-page">
+    <section class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-mark">WS</div>
+        <div>
+          <h1>Daftar Akun</h1>
+          <p>Buat akun baru untuk mulai belanja sayuran segar dengan mudah.</p>
+        </div>
+      </div>
+
+      <form id="register-form" class="auth-form">
+        <label for="full-name">Nama Lengkap</label>
+        <input id="full-name" name="fullName" type="text" placeholder="Masukkan nama lengkap" required />
+
+        <label for="phone-number">Nomor Telepon</label>
+        <input id="phone-number" name="phoneNumber" type="tel" placeholder="Contoh: 081234567890" required />
+
+        <label for="email-address">Email</label>
+        <input id="email-address" name="emailAddress" type="email" placeholder="contoh@email.com" required />
+
+        <label for="password">Kata Sandi</label>
+        <input id="password" name="password" type="password" placeholder="Buat kata sandi minimal 6 karakter" required minlength="6" />
+
+        <label for="confirm-password">Konfirmasi Kata Sandi</label>
+        <input id="confirm-password" name="confirmPassword" type="password" placeholder="Ulangi kata sandi Anda" required minlength="6" />
+
+        <button class="button button-primary" type="submit">Daftar</button>
+      </form>
+
+      <p class="auth-footer">Sudah punya akun? <a href="login.html">Masuk di sini</a></p>
+    </section>
+
+    <div class="toast" id="register-toast"></div>
+  </main>
+
+  <script src="daftar.js"></script>
+</body>
+</html>

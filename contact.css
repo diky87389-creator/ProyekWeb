@@ -1,0 +1,249 @@
+:root {
+  --bg: #f4fbf5;
+  --surface: #ffffff;
+  --surface-soft: #f7fbf6;
+  --text: #1f3c28;
+  --muted: #5e755f;
+  --primary: #3f9762;
+  --primary-dark: #265f37;
+  --border: rgba(75, 148, 90, 0.16);
+  --shadow: 0 28px 64px rgba(40, 86, 49, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top left, rgba(121, 201, 143, 0.22), transparent 30%),
+              radial-gradient(circle at bottom right, rgba(69, 143, 84, 0.12), transparent 35%),
+              var(--bg);
+  color: var(--text);
+}
+
+.container {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.page-header {
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(71, 141, 82, 0.14);
+  position: sticky;
+  top: 0;
+  z-index: 15;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem 0;
+}
+
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand-mark {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 1rem;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  font-weight: 700;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.site-nav a {
+  color: var(--text);
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.site-nav a.active,
+.site-nav a:hover {
+  background: rgba(62, 147, 95, 0.12);
+  color: var(--primary-dark);
+}
+
+.user-menu {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.user-menu a,
+.user-menu button {
+  border: none;
+  background: transparent;
+  color: var(--primary-dark);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.contact-page {
+  padding: 2.5rem 0 3rem;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 1.75rem;
+}
+
+.contact-card,
+.message-card {
+  background: var(--surface);
+  border-radius: 1.75rem;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  padding: 1.75rem;
+}
+
+.contact-card h2,
+.message-card h2 {
+  margin-top: 0.5rem;
+  font-size: clamp(1.8rem, 2.2vw, 2.3rem);
+}
+
+.contact-card p,
+.contact-card h3,
+.message-card label {
+  color: var(--muted);
+}
+
+.contact-card h3 {
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.contact-details {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.contact-details div {
+  padding: 1rem;
+  border-radius: 1.3rem;
+  background: var(--surface-soft);
+}
+
+.contact-details a {
+  color: var(--primary-dark);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.contact-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.contact-form input,
+.contact-form textarea {
+  width: 100%;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(67, 136, 87, 0.18);
+  border-radius: 1rem;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(60, 146, 84, 0.12);
+}
+
+.button {
+  border: none;
+  border-radius: 999px;
+  padding: 1rem 1.4rem;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button-primary {
+  background: linear-gradient(135deg, var(--primary), #82c98d);
+  color: #fff;
+  box-shadow: 0 16px 32px rgba(37, 92, 52, 0.16);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%) translateY(120%);
+  background: var(--primary-dark);
+  color: #fff;
+  padding: 0.9rem 1.25rem;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.toast.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.page-footer {
+  padding: 2rem 0;
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+.footer-inner a {
+  color: var(--primary-dark);
+  text-decoration: none;
+}
+
+@media (max-width: 940px) {
+  .contact-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riwayat Pesanan - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="orders.css" />
+</head>
+<body>
+  <header class="orders-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-mark">WS</div>
+        <div>
+          <h1>Riwayat Pesanan</h1>
+          <p>Lihat kembali pesanan Anda yang pernah dibuat sebelumnya.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="button button-secondary" href="profile.html">Profil</a>
+        <a class="button button-secondary" href="index.html">Kembali Belanja</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container orders-page">
+    <section class="orders-panel">
+      <div class="orders-actions">
+        <h2>Daftar Transaksi</h2>
+        <button class="button button-secondary" id="clear-history" type="button">Hapus Riwayat</button>
+      </div>
+      <div class="orders-list" id="orders-list"></div>
+    </section>
+  </main>
+
+  <footer class="orders-footer">
+    <div class="container footer-text">
+      <p>Data riwayat disimpan secara lokal di browser Anda.</p>
+    </div>
+  </footer>
+
+  <script src="orders.js"></script>
+</body>
+</html>

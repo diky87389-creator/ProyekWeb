@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Warung Sayur Diky</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-mark">WS</div>
+        <div>
+          <h1>Warung Sayur Diky</h1>
+          <p>Sayuran segar, pilihan sehat untuk keluarga.</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <a class="button button-secondary" href="profile.html">Profil</a>
+        <a class="cart-link" href="keranjang.html" aria-label="Buka keranjang belanja">
+          <span class="cart-icon">🛒</span>
+          <span class="cart-badge" id="cart-count">0</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-content">
+        <div>
+          <p class="eyebrow">Segar setiap hari</p>
+          <h2>Belanja Sayuran Organik dengan Mudah</h2>
+          <p>Beli sayuran favorit Anda cepat dan praktis. Semua produk dipilih langsung dari petani lokal.</p>
+          <a class="button button-primary" href="#katalog">Lihat Katalog</a>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-image"></div>
+          <div class="hero-card-body">
+            <span>Promo Spesial</span>
+            <h3>Diskon 10% untuk pembelian pertama</h3>
+            <p>Gunakan keranjang belanja untuk menyimpan produk dan lanjutkan ke halaman keranjang kapan pun.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="catalog" id="katalog">
+      <div class="container section-header">
+        <div>
+          <p class="eyebrow">Katalog Produk</p>
+          <h2>Sayuran Segar untuk Setiap Hidangan</h2>
+        </div>
+      </div>
+
+      <div class="product-grid" id="product-grid"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p>Warung Sayur Diky &copy; 2026. Siap untuk halaman keranjang terpisah.</p>
+      <p>Data keranjang tersimpan di localStorage browser.</p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast">Produk ditambahkan ke keranjang</div>
+  <script src="script.js"></script>
+</body>
+</html>

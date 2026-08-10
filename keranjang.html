@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Keranjang - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="keranjang.css" />
+</head>
+<body>
+  <header class="cart-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-mark">WS</div>
+        <div>
+          <h1>Keranjang Belanja</h1>
+          <p>Periksa kembali item Anda sebelum melanjutkan pembayaran.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="button button-secondary" href="profile.html">Profil</a>
+        <a class="button button-secondary" href="index.html">Kembali ke Katalog</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container cart-page">
+    <section class="cart-panel">
+      <div class="cart-panel-header">
+        <div>
+          <p class="eyebrow">Keranjang Anda</p>
+          <h2>Item yang akan dibeli</h2>
+        </div>
+        <span class="cart-status" id="cart-status">Memuat...</span>
+      </div>
+
+      <div class="cart-list" id="cart-list"></div>
+
+      <div class="cart-summary" id="cart-summary">
+        <div class="summary-row">
+          <span>Total item</span>
+          <strong id="summary-items">0</strong>
+        </div>
+        <div class="summary-row">
+          <span>Subtotal</span>
+          <strong id="summary-total">Rp0</strong>
+        </div>
+        <button class="button button-primary checkout-button" id="checkout-button" type="button">Lanjut ke Pembayaran</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-overlay" id="confirm-modal" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <p class="eyebrow">Konfirmasi Pesanan</p>
+        <h2 id="modal-title">Periksa pesanan Anda</h2>
+      </div>
+      <div class="modal-body">
+        <div class="modal-items" id="modal-items"></div>
+        <div class="modal-total">
+          <span>Total harga</span>
+          <strong id="modal-total">Rp0</strong>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="button button-secondary" id="modal-cancel" type="button">Batal / Periksa Lagi</button>
+        <button class="button button-primary" id="modal-confirm" type="button">Ya, Lanjut ke Pembayaran</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="cart-footer">
+    <div class="container footer-text">
+      <p>Data keranjang disimpan secara lokal di browser. Siap untuk halaman checkout.</p>
+    </div>
+  </footer>
+
+  <script src="keranjang.js"></script>
+</body>
+</html>

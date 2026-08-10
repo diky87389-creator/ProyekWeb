@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hubungi Kami - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="contact.css" />
+</head>
+<body>
+  <header class="page-header">
+    <div class="container header-inner">
+      <div class="brand-group">
+        <div class="brand-mark">WS</div>
+        <div>
+          <p class="eyebrow">Warung Sayur Diky</p>
+          <h1>Hubungi Kami</h1>
+        </div>
+      </div>
+
+      <nav class="site-nav" aria-label="Navigasi utama">
+        <a href="index.html">Beranda</a>
+        <a href="keranjang.html">Keranjang</a>
+        <a href="about.html">Tentang Kami</a>
+        <a href="contact.html" class="active">Hubungi Kami</a>
+        <a href="profile.html">Profil</a>
+      </nav>
+
+      <div id="user-menu" class="user-menu"></div>
+    </div>
+  </header>
+
+  <main class="container contact-page">
+    <section class="contact-grid">
+      <div class="contact-card">
+        <p class="eyebrow">Hubungi Kami</p>
+        <h2>Butuh bantuan atau informasi lebih lanjut?</h2>
+        <p>Hubungi tim layanan pelanggan kami melalui telepon, email, atau kirimkan pesan langsung lewat formulir di bawah.</p>
+
+        <div class="contact-details">
+          <div>
+            <h3>Alamat Toko</h3>
+            <p>Jl. Sayuran Segar No. 12, Jakarta Selatan</p>
+          </div>
+          <div>
+            <h3>Jam Operasional</h3>
+            <p>Senin - Sabtu: 08.00 - 18.00 WIB</p>
+          </div>
+          <div>
+            <h3>WhatsApp Bisnis</h3>
+            <p><a href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer">+62 812-3456-7890</a></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="message-card">
+        <p class="eyebrow">Kirim Pesan</p>
+        <h2>Formulir Kontak</h2>
+        <form id="contact-form" class="contact-form">
+          <label for="contact-name">Nama Lengkap</label>
+          <input id="contact-name" name="contactName" type="text" placeholder="Masukkan nama Anda" required />
+
+          <label for="contact-info">Nomor Telepon / Email</label>
+          <input id="contact-info" name="contactInfo" type="text" placeholder="Contoh: 0812xxxx atau email@example.com" required />
+
+          <label for="contact-message">Pesan</label>
+          <textarea id="contact-message" name="contactMessage" rows="5" placeholder="Tulis pesan atau pertanyaan Anda"></textarea>
+
+          <button class="button button-primary" type="submit">Kirim Pesan</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <div class="container footer-inner">
+      <p>Warung Sayur Diky &copy; 2026. Selalu siap membantu kebutuhan sayuran Anda.</p>
+      <a href="about.html">Tentang Kami</a>
+    </div>
+  </footer>
+
+  <div class="toast" id="contact-toast"></div>
+  <script src="contact.js"></script>
+</body>
+</html>
