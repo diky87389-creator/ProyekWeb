@@ -225,6 +225,18 @@ body {
   white-space: nowrap;
 }
 
+.profile-orders-button {
+  margin-top: 1.75rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+@media (max-width: 640px) {
+  .profile-orders-button {
+    max-width: none;
+  }
+}
+
 .card-title {
   margin-bottom: 1rem;
 }
