@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || process.env.DEV_PORT || 3000;
 const rootDir = __dirname;
 const notFoundPage = path.join(rootDir, '404.html');
 
