@@ -155,9 +155,13 @@ function createProductCard(product) {
   const article = document.createElement('article');
   article.className = 'product-card';
 
-  const productImage = document.createElement('div');
+  const productImage = document.createElement('img');
   productImage.className = 'product-image';
-  productImage.style.backgroundImage = `url('${product.image}')`;
+  productImage.src = product.image;
+  productImage.alt = product.name;
+  productImage.loading = 'lazy';
+  productImage.width = 400;
+  productImage.height = 210;
 
   const cardBody = document.createElement('div');
   cardBody.className = 'product-card-body';
