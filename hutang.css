@@ -32,6 +32,7 @@ body {
               radial-gradient(circle at bottom right, rgba(71, 141, 84, 0.12), transparent 35%),
               var(--bg);
   color: var(--text);
+  padding-bottom: 3rem;
 }
 
 .sr-only {
@@ -185,7 +186,7 @@ body {
 }
 
 .hutang-page {
-  padding: 1.75rem 0 3rem;
+  padding: 1.75rem 0 6rem;
   display: grid;
   gap: 1.5rem;
 }
@@ -325,6 +326,10 @@ body {
 }
 
 /* Debt list */
+.debt-panel {
+  padding-bottom: 1rem;
+}
+
 .debt-list {
   display: grid;
   gap: 1rem;
@@ -458,7 +463,8 @@ body {
 
 /* Empty state */
 .empty-state {
-  padding: 2.5rem 1.5rem;
+  padding: 3rem 1.5rem 4rem;
+  margin-bottom: 2rem;
   text-align: center;
   border-radius: 1.5rem;
   background: rgba(245, 251, 245, 0.9);
@@ -466,12 +472,13 @@ body {
 }
 
 .empty-state h3 {
-  margin: 0 0 0.4rem;
+  margin: 0 0 0.6rem;
 }
 
 .empty-state p {
   margin: 0;
   color: var(--muted);
+  line-height: 1.6;
 }
 
 /* Modal */
