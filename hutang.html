@@ -12,21 +12,19 @@
       <div class="brand-group">
         <div class="brand-mark">WS</div>
         <div>
-          <p class="eyebrow">Warung Sayur Diky</p>
+          <p class="eyebrow">Kasbon Pelanggan</p>
           <h1>Manajemen Hutang</h1>
         </div>
       </div>
-
-      <nav class="site-nav" aria-label="Navigasi utama">
+      <nav class="site-nav">
         <a href="index.html">Beranda</a>
-        <a href="orders.html">Pesanan</a>
-        <a href="hutang.html" class="active">Hutang</a>
-        <a href="about.html">Tentang Kami</a>
+        <a href="keranjang.html">Keranjang</a>
         <a href="profile.html">Profil</a>
+        <a href="contact.html">Kontak</a>
+        <a href="hutang.html" class="active">Hutang</a>
       </nav>
-
       <div class="header-actions">
-        <button class="button button-primary" id="add-debt-button" type="button">+ Catat Hutang</button>
+        <button class="button button-primary" id="add-button" type="button">+ Tambah Hutang</button>
       </div>
     </div>
   </header>
@@ -60,7 +58,7 @@
     <section class="toolbar" aria-label="Pencarian dan filter">
       <div class="search-field">
         <span class="search-icon" aria-hidden="true">🔍</span>
-        <input type="search" id="search-input" placeholder="Cari nama pelanggan..." aria-label="Cari nama pelanggan" />
+        <input type="search" id="search-input" placeholder="Cari nama pelanggan..." aria-label="Cari nama pelanggan">
       </div>
       <div class="filter-group">
         <label class="sr-only" for="filter-status">Filter status</label>
@@ -95,7 +93,7 @@
       <div class="backup-actions">
         <button class="button button-secondary" id="export-button" type="button">⬇ Ekspor Data</button>
         <button class="button button-secondary" id="import-button" type="button">⬆ Impor Data</button>
-        <input type="file" id="import-file" accept="application/json" hidden />
+        <input type="file" id="import-file" accept="application/json" hidden>
       </div>
     </section>
 
@@ -105,125 +103,122 @@
     </section>
   </main>
 
-  <footer class="page-footer">
-    <div class="container footer-inner">
-      <p>Warung Sayur Diky &copy; 2026. Data hutang tersimpan secara lokal di browser Anda.</p>
-      <a href="index.html">Kembali Belanja</a>
-    </div>
-  </footer>
-
   <!-- Modal: Tambah / Edit Hutang -->
   <div class="modal-overlay" id="form-modal" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="form-modal-title">
+    <div class="modal">
       <div class="modal-header">
-        <h2 id="form-modal-title">Catat Hutang Baru</h2>
-        <button class="modal-close" type="button" data-close-modal aria-label="Tutup">✕</button>
+        <h2 id="form-title">Tambah Hutang</h2>
+        <button class="modal-close" data-close="form-modal" type="button">✕</button>
       </div>
-      <form id="debt-form" class="modal-body">
-        <input type="hidden" id="debt-id" />
-        <div class="form-row">
-          <label for="debt-name">Nama Pelanggan</label>
-          <input type="text" id="debt-name" required placeholder="cth. Ibu Sari" />
-        </div>
-        <div class="form-row">
-          <label for="debt-phone">Nomor WhatsApp</label>
-          <input type="tel" id="debt-phone" placeholder="cth. 081234567890" />
-        </div>
-        <div class="form-row">
-          <label for="debt-month">Bulan Tagihan</label>
-          <select id="debt-month" required>
-            <option value="1">Bulan 1 - Januari</option>
-            <option value="2">Bulan 2 - Februari</option>
-            <option value="3">Bulan 3 - Maret</option>
-            <option value="4">Bulan 4 - April</option>
-            <option value="5">Bulan 5 - Mei</option>
-            <option value="6">Bulan 6 - Juni</option>
-            <option value="7">Bulan 7 - Juli</option>
-            <option value="8">Bulan 8 - Agustus</option>
-            <option value="9">Bulan 9 - September</option>
-            <option value="10">Bulan 10 - Oktober</option>
-            <option value="11">Bulan 11 - November</option>
-            <option value="12">Bulan 12 - Desember</option>
-          </select>
-        </div>
-
-        <div class="form-items">
-          <div class="form-items-head">
-            <label>Rincian Belanja</label>
-            <button type="button" class="button-link" id="add-item-row">+ Tambah Item</button>
+      <div class="modal-body">
+        <form id="debt-form">
+          <input type="hidden" id="debt-id" />
+          <div class="form-row">
+            <label for="customer-name">Nama Pelanggan</label>
+            <input type="text" id="customer-name" required placeholder="Nama pelanggan" />
           </div>
-          <div id="item-rows"></div>
-        </div>
-
-        <div class="form-total">
-          <span>Total Hutang</span>
-          <strong id="form-total-value">Rp0</strong>
-        </div>
-
-        <button type="submit" class="button button-primary button-full">Simpan Hutang</button>
-      </form>
+          <div class="form-row">
+            <label for="customer-phone">No. WhatsApp</label>
+            <input type="tel" id="customer-phone" placeholder="08xxxxxxxxxx" />
+          </div>
+          <div class="form-row">
+            <label for="debt-date">Tanggal Transaksi</label>
+            <input type="date" id="debt-date" required />
+          </div>
+          <div class="form-row">
+            <label for="due-date">Jatuh Tempo</label>
+            <input type="date" id="due-date" />
+          </div>
+          <div class="form-row">
+            <div class="form-items-head">
+              <span class="form-label">Daftar Item / Penyebab Hutang</span>
+              <button type="button" class="button-link" id="add-item-btn">+ Tambah Item</button>
+            </div>
+            <div id="items-container"></div>
+          </div>
+          <div class="form-row">
+            <label for="debt-note">Catatan</label>
+            <textarea id="debt-note" rows="2" placeholder="Catatan tambahan..."></textarea>
+          </div>
+          <button type="submit" class="button button-primary button-full">Simpan Hutang</button>
+        </form>
+      </div>
     </div>
   </div>
 
   <!-- Modal: Metode Pembayaran -->
   <div class="modal-overlay" id="pay-modal" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pay-modal-title">
+    <div class="modal">
       <div class="modal-header">
-        <h2 id="pay-modal-title">Pelunasan Hutang</h2>
-        <button class="modal-close" type="button" data-close-modal aria-label="Tutup">✕</button>
+        <h2>Pembayaran Hutang</h2>
+        <button class="modal-close" data-close="pay-modal" type="button">✕</button>
       </div>
       <div class="modal-body">
-        <p class="pay-info" id="pay-info">Pilih metode pembayaran untuk melunasi tagihan.</p>
-        <div class="pay-amount">
-          <span>Jumlah Tagihan</span>
-          <strong id="pay-amount-value">Rp0</strong>
+        <div class="pay-customer-info" id="pay-customer-info"></div>
+        <div class="form-row">
+          <span class="form-label">Pilih Metode Pembayaran</span>
+          <div class="payment-methods" id="payment-methods">
+            <label class="method-option">
+              <input type="radio" name="pay-method" value="QRIS" checked />
+              <span class="method-card">
+                <span class="method-icon">📱</span>
+                <span class="method-name">QRIS</span>
+                <span class="method-desc">Scan untuk bayar</span>
+              </span>
+            </label>
+            <label class="method-option">
+              <input type="radio" name="pay-method" value="Transfer Bank" />
+              <span class="method-card">
+                <span class="method-icon">🏦</span>
+                <span class="method-name">Transfer Bank</span>
+                <span class="method-desc">Transfer manual</span>
+              </span>
+            </label>
+            <label class="method-option">
+              <input type="radio" name="pay-method" value="Tunai" />
+              <span class="method-card">
+                <span class="method-icon">💵</span>
+                <span class="method-name">Tunai</span>
+                <span class="method-desc">Bayar langsung</span>
+              </span>
+            </label>
+          </div>
         </div>
-        <p class="form-label">Metode Pembayaran</p>
-        <div class="pay-methods" id="pay-methods">
-          <label class="pay-method">
-            <input type="radio" name="pay-method" value="QRIS" checked />
-            <span class="pay-method-body"><strong>QRIS</strong><small>Scan & bayar instan</small></span>
-          </label>
-          <label class="pay-method">
-            <input type="radio" name="pay-method" value="Transfer Bank" />
-            <span class="pay-method-body"><strong>Transfer Bank</strong><small>BCA / BRI / Mandiri</small></span>
-          </label>
-          <label class="pay-method">
-            <input type="radio" name="pay-method" value="Tunai" />
-            <span class="pay-method-body"><strong>Tunai</strong><small>Bayar langsung di warung</small></span>
-          </label>
-        </div>
-        <button type="button" class="button button-primary button-full" id="confirm-pay">Konfirmasi Pelunasan</button>
+        <div class="pay-detail" id="pay-detail"></div>
+        <button type="button" class="button button-primary button-full" id="confirm-pay-btn">Konfirmasi Pembayaran</button>
       </div>
     </div>
   </div>
 
   <!-- Modal: Detail / Histori -->
   <div class="modal-overlay" id="detail-modal" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+    <div class="modal">
       <div class="modal-header">
-        <h2 id="detail-modal-title">Detail Transaksi</h2>
-        <button class="modal-close" type="button" data-close-modal aria-label="Tutup">✕</button>
+        <h2>Histori Pelanggan</h2>
+        <button class="modal-close" data-close="detail-modal" type="button">✕</button>
       </div>
-      <div class="modal-body" id="detail-body"></div>
+      <div class="modal-body">
+        <div id="detail-content"></div>
+      </div>
     </div>
   </div>
 
   <!-- Modal: Struk / Invoice -->
   <div class="modal-overlay" id="receipt-modal" hidden>
-    <div class="modal receipt" role="dialog" aria-modal="true" aria-labelledby="receipt-modal-title">
+    <div class="modal">
       <div class="modal-header">
-        <h2 id="receipt-modal-title">Struk Pembayaran</h2>
-        <button class="modal-close" type="button" data-close-modal aria-label="Tutup">✕</button>
+        <h2>Bukti Pembayaran</h2>
+        <button class="modal-close" data-close="receipt-modal" type="button">✕</button>
       </div>
       <div class="modal-body">
-        <div class="receipt-paper" id="receipt-paper"></div>
-        <button type="button" class="button button-primary button-full" data-close-modal>Selesai</button>
+        <div id="receipt-content"></div>
+        <button type="button" class="button button-secondary button-full" id="print-receipt-btn">🖨 Cetak / Simpan Struk</button>
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast">Tersimpan</div>
+
   <script src="hutang.js"></script>
 </body>
 </html>
