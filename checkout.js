@@ -127,7 +127,7 @@ function renderOrderSummary() {
 
 function getSelectedPaymentMethod() {
   const selected = checkoutForm.querySelector('input[name="paymentMethod"]:checked');
-  return selected ? selected.value : 'COD';
+  return selected ? selected.value : 'Tunai';
 }
 
 function getSelectedDeliveryMethod() {
@@ -251,8 +251,61 @@ async function submitOrder() {
   await new Promise(resolve => setTimeout(resolve, 300));
   
   const orderData = buildOrderData();
+  const paymentMethod = getSelectedPaymentMethod();
+
+  if (paymentMethod === 'Hutang') {
+    saveDebtFromCheckout(orderData);
+  }
+
   localStorage.setItem('dikyLastOrder', JSON.stringify(orderData));
   window.location.href = 'success.html';
+}
+
+function saveDebtFromCheckout(orderData) {
+  const STORAGE_KEY = 'wsd_hutang_data';
+  let debts = [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    debts = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    debts = [];
+  }
+
+  const cart = orderData.cart || [];
+  const items = cart.map(function (item) {
+    return {
+      name: item.name,
+      qty: item.quantity,
+      price: item.price
+    };
+  });
+
+  const shippingCost = orderData.shippingCost || 0;
+  if (shippingCost > 0) {
+    items.push({ name: 'Ongkir', qty: 1, price: shippingCost });
+  }
+
+  const subtotal = cart.reduce(function (sum, item) {
+    return sum + item.price * item.quantity;
+  }, 0);
+  const totalAmount = subtotal + shippingCost;
+
+  const debt = {
+    id: 'HUT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    customerName: orderData.customer.name,
+    phone: orderData.customer.phone,
+    address: orderData.customer.address,
+    items: items,
+    subtotal: subtotal,
+    shippingCost: shippingCost,
+    totalAmount: totalAmount,
+    date: new Date().toISOString().slice(0, 10),
+    status: 'belum',
+    note: 'Dari Checkout - Hutang Pelanggan'
+  };
+
+  debts.unshift(debt);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(debts));
 }
 
 function initializeCheckoutPage() {
