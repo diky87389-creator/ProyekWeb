@@ -22,9 +22,6 @@
         <a href="profile.html">Profil</a>
         <a href="contact.html">Kontak</a>
       </nav>
-      <div class="header-actions">
-        <button class="button button-primary" id="add-button" type="button">+ Tambah Hutang</button>
-      </div>
     </div>
   </header>
 
@@ -86,76 +83,23 @@
       </div>
     </section>
 
-    <!-- Ekspor / Impor -->
-    <section class="backup-bar" aria-label="Cadangan data">
-      <p class="backup-text">Cadangkan atau pulihkan data hutang Anda.</p>
-      <div class="backup-actions">
-        <button class="button button-secondary" id="export-button" type="button">⬇ Ekspor Data</button>
-        <button class="button button-secondary" id="import-button" type="button">⬆ Impor Data</button>
-        <input type="file" id="import-file" accept="application/json" hidden>
-      </div>
-    </section>
-
     <!-- Daftar Hutang -->
     <section class="debt-panel" aria-label="Daftar hutang pelanggan">
       <div class="debt-list" id="debt-list"></div>
     </section>
   </main>
 
-  <!-- Modal: Tambah / Edit Hutang -->
-  <div class="modal-overlay" id="form-modal" hidden>
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="form-title">Tambah Hutang</h2>
-        <button class="modal-close" data-close="form-modal" type="button">✕</button>
-      </div>
-      <div class="modal-body">
-        <form id="debt-form">
-          <input type="hidden" id="debt-id" />
-          <div class="form-row">
-            <label for="customer-name">Nama Pelanggan</label>
-            <input type="text" id="customer-name" required placeholder="Nama pelanggan" />
-          </div>
-          <div class="form-row">
-            <label for="customer-phone">No. WhatsApp</label>
-            <input type="tel" id="customer-phone" placeholder="08xxxxxxxxxx" />
-          </div>
-          <div class="form-row">
-            <label for="debt-date">Tanggal Transaksi</label>
-            <input type="date" id="debt-date" required />
-          </div>
-          <div class="form-row">
-            <label for="due-date">Jatuh Tempo</label>
-            <input type="date" id="due-date" />
-          </div>
-          <div class="form-row">
-            <div class="form-items-head">
-              <span class="form-label">Daftar Item / Penyebab Hutang</span>
-              <button type="button" class="button-link" id="add-item-btn">+ Tambah Item</button>
-            </div>
-            <div id="items-container"></div>
-          </div>
-          <div class="form-row">
-            <label for="debt-note">Catatan</label>
-            <textarea id="debt-note" rows="2" placeholder="Catatan tambahan..."></textarea>
-          </div>
-          <button type="submit" class="button button-primary button-full">Simpan Hutang</button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Metode Pembayaran -->
+  <!-- Modal: Cara Pembayaran (Informasi) -->
   <div class="modal-overlay" id="pay-modal" hidden>
     <div class="modal">
       <div class="modal-header">
-        <h2>Pembayaran Hutang</h2>
+        <h2>Cara Pembayaran</h2>
         <button class="modal-close" data-close="pay-modal" type="button">✕</button>
       </div>
       <div class="modal-body">
         <div class="pay-customer-info" id="pay-customer-info"></div>
         <div class="form-row">
-          <span class="form-label">Pilih Metode Pembayaran</span>
+          <span class="form-label">Cara Membayar kepada Admin</span>
           <div class="payment-methods" id="payment-methods">
             <label class="method-option">
               <input type="radio" name="pay-method" value="QRIS" checked />
@@ -184,7 +128,7 @@
           </div>
         </div>
         <div class="pay-detail" id="pay-detail"></div>
-        <button type="button" class="button button-primary button-full" id="confirm-pay-btn">Konfirmasi Pembayaran</button>
+        <p class="pay-note">Silakan lakukan pembayaran kepada Admin. Status hutang akan diperbarui menjadi <strong>Lunas</strong> oleh Admin setelah pembayaran diterima.</p>
       </div>
     </div>
   </div>
