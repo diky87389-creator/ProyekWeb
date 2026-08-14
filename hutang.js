@@ -1,5 +1,6 @@
-// === Manajemen Hutang (Kasbon) Pelanggan ===
+// === Manajemen Hutang (Kasbon) Pelanggan — Mode Lihat Saja ===
 // Warung Sayur Diky - Vanilla JS + localStorage
+// Pengguna hanya boleh melihat & menghubungi. Tidak ada aksi mengubah data.
 
 (function () {
   "use strict";
@@ -17,17 +18,9 @@
     }
   }
 
-  function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(debts));
-  }
-
   // --- Helpers ---
   function formatCurrency(n) {
     return "Rp" + (n || 0).toLocaleString("id-ID");
-  }
-
-  function uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
   function formatDate(d) {
@@ -65,10 +58,6 @@
   var searchInput = document.getElementById("search-input");
   var filterStatus = document.getElementById("filter-status");
   var filterMonth = document.getElementById("filter-month");
-  var addButton = document.getElementById("add-button");
-  var exportButton = document.getElementById("export-button");
-  var importButton = document.getElementById("import-button");
-  var importFile = document.getElementById("import-file");
 
   // --- Render summary ---
   function renderSummary() {
@@ -110,7 +99,7 @@
       debtList.innerHTML =
         '<div class="empty-state">' +
         "<h3>Belum ada data hutang</h3>" +
-        "<p>" + (debts.length === 0 ? 'Klik "Tambah Hutang" untuk mencatat kasbon pelanggan.' : "Tidak ada hasil untuk filter ini.") + "</p>" +
+        "<p>" + (debts.length === 0 ? "Belum ada catatan hutang untuk Anda." : "Tidak ada hasil untuk filter ini.") + "</p>" +
         "</div>";
       return;
     }
@@ -118,9 +107,9 @@
     debtList.innerHTML = filtered.map(function (d) {
       var total = calcTotal(d);
       var itemsText = (d.items || []).map(function (i) { return i.name + " ×" + i.qty; }).join(", ");
-      var payBtn = d.status === "belum"
-        ? '<button class="action-btn action-pay" data-action="pay" data-id="' + d.id + '">💳 Bayar</button>'
-        : '<button class="action-btn" data-action="receipt" data-id="' + d.id + '">🧾 Lihat Struk</button>';
+      var payInfoBtn = d.status === "belum"
+        ? '<button class="action-btn action-pay" data-action="pay" data-id="' + d.id + '">💳 Cara Bayar</button>'
+        : "";
       var waBtn = d.phone
         ? '<button class="action-btn action-wa" data-action="wa" data-id="' + d.id + '">💬 WhatsApp</button>'
         : "";
@@ -142,11 +131,10 @@
         "</div>" +
         "</div>" +
         '<div class="debt-actions">' +
-        payBtn +
+        payInfoBtn +
+        '<button class="action-btn" data-action="receipt" data-id="' + d.id + '">🧾 Lihat Struk</button>' +
         '<button class="action-btn" data-action="detail" data-id="' + d.id + '">📋 Histori</button>' +
         waBtn +
-        '<button class="action-btn" data-action="edit" data-id="' + d.id + '">✏️ Edit</button>' +
-        '<button class="action-btn action-danger" data-action="delete" data-id="' + d.id + '">🗑️ Hapus</button>' +
         "</div>" +
         "</article>"
       );
@@ -162,114 +150,19 @@
     var debt = debts.find(function (d) { return d.id === id; });
     if (!debt) return;
 
-    if (action === "pay") openPayModal(debt);
+    if (action === "pay") openPayInfoModal(debt);
     else if (action === "receipt") openReceiptModal(debt);
     else if (action === "detail") openDetailModal(debt);
     else if (action === "wa") sendWhatsApp(debt);
-    else if (action === "edit") openFormModal(debt);
-    else if (action === "delete") deleteDebt(debt);
   });
 
-  // --- Form modal (add/edit) ---
-  var formModal = document.getElementById("form-modal");
-  var debtForm = document.getElementById("debt-form");
-  var itemsContainer = document.getElementById("items-container");
-  var addItemBtn = document.getElementById("add-item-btn");
-  var formTitle = document.getElementById("form-title");
-
-  function openFormModal(debt) {
-    formTitle.textContent = debt ? "Edit Hutang" : "Tambah Hutang";
-    document.getElementById("debt-id").value = debt ? debt.id : "";
-    document.getElementById("customer-name").value = debt ? debt.customerName : "";
-    document.getElementById("customer-phone").value = debt ? (debt.phone || "") : "";
-    document.getElementById("debt-date").value = debt ? debt.date : new Date().toISOString().slice(0, 10);
-    document.getElementById("due-date").value = debt ? (debt.dueDate || "") : "";
-    document.getElementById("debt-note").value = debt ? (debt.note || "") : "";
-    itemsContainer.innerHTML = "";
-    if (debt && debt.items && debt.items.length) {
-      debt.items.forEach(function (item) { addItemRow(item); });
-    } else {
-      addItemRow();
-    }
-    formModal.hidden = false;
-  }
-
-  function addItemRow(item) {
-    var row = document.createElement("div");
-    row.className = "item-row-input";
-    row.innerHTML =
-      '<input type="text" class="item-name" placeholder="Nama item" value="' + (item && item.name ? escapeHtml(item.name) : "") + '" />' +
-      '<input type="number" class="item-qty" placeholder="Qty" min="1" value="' + (item ? item.qty : "1") + '" />' +
-      '<input type="number" class="item-price" placeholder="Harga" min="0" value="' + (item ? item.price : "") + '" />' +
-      '<button type="button" class="remove-item">✕</button>';
-    itemsContainer.appendChild(row);
-  }
-
-  addItemBtn.addEventListener("click", function () { addItemRow(); });
-
-  itemsContainer.addEventListener("click", function (e) {
-    if (e.target.classList.contains("remove-item")) {
-      e.target.closest(".item-row-input").remove();
-    }
-  });
-
-  debtForm.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var id = document.getElementById("debt-id").value;
-    var items = [];
-    itemsContainer.querySelectorAll(".item-row-input").forEach(function (row) {
-      var name = row.querySelector(".item-name").value.trim();
-      var qty = Number(row.querySelector(".item-qty").value) || 0;
-      var price = Number(row.querySelector(".item-price").value) || 0;
-      if (name) items.push({ name: name, qty: qty, price: price });
-    });
-
-    if (items.length === 0) {
-      showToast("Tambahkan minimal 1 item");
-      return;
-    }
-
-    var data = {
-      id: id || uid(),
-      customerName: document.getElementById("customer-name").value.trim(),
-      phone: document.getElementById("customer-phone").value.trim(),
-      date: document.getElementById("debt-date").value,
-      dueDate: document.getElementById("due-date").value,
-      items: items,
-      note: document.getElementById("debt-note").value.trim(),
-      status: "belum",
-      createdDate: new Date().toISOString()
-    };
-
-    if (id) {
-      var idx = debts.findIndex(function (d) { return d.id === id; });
-      if (idx > -1) {
-        data.status = debts[idx].status;
-        data.paymentMethod = debts[idx].paymentMethod;
-        data.paymentDate = debts[idx].paymentDate;
-        data.createdDate = debts[idx].createdDate;
-        debts[idx] = data;
-      }
-    } else {
-      debts.unshift(data);
-    }
-
-    saveData();
-    renderList();
-    formModal.hidden = true;
-    showToast(id ? "Hutang diperbarui" : "Hutang ditambahkan");
-  });
-
-  addButton.addEventListener("click", function () { openFormModal(null); });
-
-  // --- Payment modal ---
+  // --- Payment info modal (read-only) ---
   var payModal = document.getElementById("pay-modal");
   var payCustomerInfo = document.getElementById("pay-customer-info");
   var payDetail = document.getElementById("pay-detail");
-  var confirmPayBtn = document.getElementById("confirm-pay-btn");
   var currentPayDebt = null;
 
-  function openPayModal(debt) {
+  function openPayInfoModal(debt) {
     currentPayDebt = debt;
     var total = calcTotal(debt);
     payCustomerInfo.innerHTML =
@@ -301,22 +194,6 @@
 
   document.querySelectorAll('input[name="pay-method"]').forEach(function (r) {
     r.addEventListener("change", updatePayDetail);
-  });
-
-  confirmPayBtn.addEventListener("click", function () {
-    if (!currentPayDebt) return;
-    var method = document.querySelector('input[name="pay-method"]:checked').value;
-    var idx = debts.findIndex(function (d) { return d.id === currentPayDebt.id; });
-    if (idx > -1) {
-      debts[idx].status = "lunas";
-      debts[idx].paymentMethod = method;
-      debts[idx].paymentDate = new Date().toISOString();
-      saveData();
-      renderList();
-      payModal.hidden = true;
-      showToast("Pembayaran berhasil!");
-      openReceiptModal(debts[idx]);
-    }
   });
 
   // --- Receipt modal ---
@@ -414,8 +291,8 @@
       return "• " + i.name + " ×" + i.qty + " = " + formatCurrency((i.qty || 0) * (i.price || 0));
     }).join("\n");
     var msg =
-      "Halo " + debt.customerName + ",\n\n" +
-      "Ini pengingat tagihan di Warung Sayur Diky:\n\n" +
+      "Halo Admin Warung Sayur Diky,\n\n" +
+      "Saya ingin menanyakan/mengonfirmasi tagihan atas nama " + debt.customerName + ":\n\n" +
       itemsText + "\n\n" +
       "Total: *" + formatCurrency(total) + "*\n\n" +
       "Jatuh tempo: " + formatDate(debt.dueDate) + "\n\n" +
@@ -428,56 +305,6 @@
     window.open(url, "_blank");
     showToast("Membuka WhatsApp...");
   }
-
-  // --- Delete ---
-  function deleteDebt(debt) {
-    if (confirm("Hapus hutang " + debt.customerName + "?")) {
-      debts = debts.filter(function (d) { return d.id !== debt.id; });
-      saveData();
-      renderList();
-      showToast("Hutang dihapus");
-    }
-  }
-
-  // --- Export / Import ---
-  exportButton.addEventListener("click", function () {
-    var data = JSON.stringify({ exportDate: new Date().toISOString(), debts: debts }, null, 2);
-    var blob = new Blob([data], { type: "application/json" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = "hutang-wsd-" + new Date().toISOString().slice(0, 10) + ".json";
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast("Data diekspor");
-  });
-
-  importButton.addEventListener("click", function () { importFile.click(); });
-
-  importFile.addEventListener("change", function (e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function (ev) {
-      try {
-        var data = JSON.parse(ev.target.result);
-        if (data.debts && Array.isArray(data.debts)) {
-          if (confirm("Impor akan mengganti semua data saat ini. Lanjutkan?")) {
-            debts = data.debts;
-            saveData();
-            renderList();
-            showToast("Data berhasil diimpor");
-          }
-        } else {
-          showToast("Format file tidak valid");
-        }
-      } catch (err) {
-        showToast("Gagal membaca file");
-      }
-    };
-    reader.readAsText(file);
-    importFile.value = "";
-  });
 
   // --- Modal close handlers ---
   document.querySelectorAll("[data-close]").forEach(function (btn) {
