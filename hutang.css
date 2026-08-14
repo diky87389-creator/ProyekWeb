@@ -685,6 +685,21 @@ body {
   line-height: 1.5;
 }
 
+.pay-note {
+  margin: 0;
+  padding: 0.85rem 1.1rem;
+  background: var(--warn-soft);
+  border-radius: 0.9rem;
+  font-size: 0.85rem;
+  color: #6b4a1e;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.pay-note strong {
+  color: var(--warn);
+}
+
 /* Receipt */
 .receipt {
   border: 2px dashed var(--border);
