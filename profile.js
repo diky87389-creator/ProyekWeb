@@ -1,5 +1,8 @@
 const activeUserKey = 'dikyActiveUser';
 const userNameField = document.getElementById('user-name');
+const userProviderField = document.getElementById('user-provider');
+const userAvatarImage = document.getElementById('user-avatar-image');
+const userAvatarInitials = document.getElementById('user-avatar-initials');
 const userContactField = document.getElementById('user-contact');
 const userEmailField = document.getElementById('user-email');
 const userLoginTimeField = document.getElementById('user-login-time');
@@ -12,8 +15,42 @@ function normalizeActiveUser(user) {
   const { whatsappNumber, ...rest } = user;
   return {
     ...rest,
-    phoneNumber: user.phoneNumber || whatsappNumber || null
+    phoneNumber: user.phoneNumber || whatsappNumber || null,
+    avatarUrl: user.avatarUrl || null,
+    authProvider: user.authProvider || 'email'
   };
+}
+
+function buildInitials(user) {
+  const source = (user.fullName || user.emailAddress || '').trim();
+  if (!source) return 'WS';
+
+  const words = source.split(/[\s@._-]+/).filter(Boolean);
+  const initials = words.slice(0, 2).map((word) => word[0]).join('');
+  return initials.toUpperCase() || 'WS';
+}
+
+function renderAvatar(user) {
+  userAvatarInitials.textContent = buildInitials(user);
+
+  if (!user.avatarUrl) {
+    userAvatarImage.hidden = true;
+    userAvatarImage.removeAttribute('src');
+    userAvatarInitials.hidden = false;
+    return;
+  }
+
+  userAvatarImage.onerror = () => {
+    userAvatarImage.hidden = true;
+    userAvatarInitials.hidden = false;
+  };
+  userAvatarImage.onload = () => {
+    userAvatarImage.hidden = false;
+    userAvatarInitials.hidden = true;
+  };
+  userAvatarImage.referrerPolicy = 'no-referrer';
+  userAvatarImage.src = user.avatarUrl;
+  userAvatarImage.alt = `Foto profil ${user.fullName || 'pengguna'}`;
 }
 
 function saveActiveUser(user) {
@@ -67,6 +104,8 @@ function renderProfile() {
   if (!user) return;
 
   userNameField.textContent = user.fullName || 'Nama tidak tersedia';
+  userProviderField.textContent = user.authProvider === 'google' ? 'Akun Google' : 'Akun Email';
+  renderAvatar(user);
   userContactField.textContent = user.phoneNumber || user.contactInfo || '-';
   userEmailField.textContent = user.emailAddress || (user.contactInfo && user.contactInfo.includes('@') ? user.contactInfo : '-') || '-';
   userIdField.textContent = user.id || '-';
