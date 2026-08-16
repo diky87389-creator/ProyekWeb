@@ -2,6 +2,7 @@ const registerForm = document.getElementById('register-form');
 const toast = document.getElementById('register-toast');
 const usersKey = 'dikyRegisteredUsers';
 const activeUserKey = 'dikyActiveUser';
+const pendingGoogleKey = 'dikyPendingGoogleProfile';
 
 function getActiveUser() {
   const raw = localStorage.getItem(activeUserKey);
@@ -63,6 +64,29 @@ function saveRegisteredUsers(users) {
 
 function saveActiveUser(user) {
   localStorage.setItem(activeUserKey, JSON.stringify(user));
+}
+
+function getPendingProfile() {
+  const raw = localStorage.getItem(pendingGoogleKey);
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.warn('Data pendaftaran tertunda tidak valid.', error);
+    localStorage.removeItem(pendingGoogleKey);
+    return null;
+  }
+}
+
+function prefillFromPendingProfile() {
+  const profile = getPendingProfile();
+  if (!profile) return;
+
+  if (profile.emailAddress) {
+    document.getElementById('email-address').value = profile.emailAddress;
+  }
+  if (profile.fullName) {
+    document.getElementById('full-name').value = profile.fullName;
+  }
 }
 
 function normalizePhone(number) {
@@ -140,12 +164,21 @@ function handleRegister(event) {
   }
 
   const users = getRegisteredUsers();
+  const pendingProfile = getPendingProfile();
+  const matchesPendingEmail = Boolean(
+    pendingProfile &&
+    pendingProfile.emailAddress &&
+    pendingProfile.emailAddress.toLowerCase() === emailAddress.toLowerCase()
+  );
+
   const newUser = {
     id: `USER-${Date.now()}`,
     fullName,
     phoneNumber: normalizePhone(phoneNumber),
     emailAddress: emailAddress.toLowerCase(),
-    password
+    password,
+    avatarUrl: matchesPendingEmail ? pendingProfile.avatarUrl || null : null,
+    authProvider: matchesPendingEmail ? pendingProfile.authProvider || 'email' : 'email'
   };
 
   users.push(newUser);
@@ -155,8 +188,11 @@ function handleRegister(event) {
     fullName: newUser.fullName,
     phoneNumber: newUser.phoneNumber,
     emailAddress: newUser.emailAddress,
+    avatarUrl: newUser.avatarUrl,
+    authProvider: newUser.authProvider,
     loggedAt: new Date().toISOString()
   });
+  localStorage.removeItem(pendingGoogleKey);
 
   showToast('Pendaftaran berhasil! Anda langsung masuk dan diarahkan ke beranda...');
 
@@ -165,5 +201,8 @@ function handleRegister(event) {
   }, 1800);
 }
 
-window.addEventListener('DOMContentLoaded', redirectIfLoggedIn);
+window.addEventListener('DOMContentLoaded', () => {
+  redirectIfLoggedIn();
+  prefillFromPendingProfile();
+});
 registerForm.addEventListener('submit', handleRegister);

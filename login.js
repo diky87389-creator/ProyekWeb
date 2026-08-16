@@ -1,7 +1,14 @@
 const loginForm = document.getElementById('login-form');
+const googleLoginButton = document.getElementById('google-login-button');
+const googleNativeContainer = document.getElementById('google-native-button');
 const toast = document.getElementById('login-toast');
 const usersKey = 'dikyRegisteredUsers';
 const activeUserKey = 'dikyActiveUser';
+const pendingGoogleKey = 'dikyPendingGoogleProfile';
+
+// Isi dengan OAuth Client ID Google agar tombol Google memakai akun asli
+// (nama, email, dan foto profil asli). Biarkan kosong untuk mode lokal.
+const googleClientId = '';
 
 function getActiveUser() {
   const raw = localStorage.getItem(activeUserKey);
@@ -66,17 +73,42 @@ function isValidEmail(email) {
   return emailPattern.test(email);
 }
 
-function validateLogin(emailAddress, password) {
-  const users = getRegisteredUsers();
-  const normalizedEmail = emailAddress ? emailAddress.toLowerCase() : null;
+function getUserEmails(user) {
+  const emails = [];
+  if (user.emailAddress) emails.push(user.emailAddress.toLowerCase());
+  const fallback = user.contactInfo ? user.contactInfo.trim() : '';
+  if (isValidEmail(fallback)) emails.push(fallback.toLowerCase());
+  return emails;
+}
 
-  return users.find((user) => {
-    const userEmail = user.emailAddress ? user.emailAddress.toLowerCase() : null;
-    const fallback = user.contactInfo ? user.contactInfo.trim() : '';
-    const fallbackEmail = isValidEmail(fallback) ? fallback.toLowerCase() : null;
+function findUserByEmail(emailAddress) {
+  const normalizedEmail = emailAddress ? emailAddress.toLowerCase() : '';
+  if (!normalizedEmail) return undefined;
+  return getRegisteredUsers().find((user) => getUserEmails(user).includes(normalizedEmail));
+}
 
-    return (userEmail === normalizedEmail || fallbackEmail === normalizedEmail) && user.password === password;
-  });
+function buildSession(user, extra = {}) {
+  return {
+    id: user.id,
+    fullName: user.fullName,
+    emailAddress: user.emailAddress ? user.emailAddress.toLowerCase() : null,
+    phoneNumber: user.phoneNumber || user.whatsappNumber || null,
+    avatarUrl: user.avatarUrl || null,
+    authProvider: user.authProvider || 'email',
+    loggedAt: new Date().toISOString(),
+    ...extra
+  };
+}
+
+function redirectToRegister(profile) {
+  if (profile) {
+    localStorage.setItem(pendingGoogleKey, JSON.stringify(profile));
+  }
+
+  showToast('Akun belum terdaftar. Mengarahkan ke halaman pendaftaran...');
+  window.setTimeout(() => {
+    window.location.href = 'daftar.html';
+  }, 1500);
 }
 
 function handleLogin(event) {
@@ -94,19 +126,18 @@ function handleLogin(event) {
     return;
   }
 
-  const user = validateLogin(emailAddress, password);
+  const user = findUserByEmail(emailAddress);
   if (!user) {
-    showToast('Login gagal. Periksa data dan coba lagi.');
+    redirectToRegister({ emailAddress: emailAddress.toLowerCase(), fullName: null, avatarUrl: null, authProvider: 'email' });
     return;
   }
 
-  saveActiveUser({
-    id: user.id,
-    fullName: user.fullName,
-    emailAddress: user.emailAddress ? user.emailAddress.toLowerCase() : null,
-    phoneNumber: user.phoneNumber || user.whatsappNumber || null,
-    loggedAt: new Date().toISOString()
-  });
+  if (user.password !== password) {
+    showToast('Kata sandi salah. Silakan coba lagi.');
+    return;
+  }
+
+  saveActiveUser(buildSession(user));
 
   showToast('Login berhasil! Mengarahkan ke halaman utama...');
   window.setTimeout(() => {
@@ -114,5 +145,145 @@ function handleLogin(event) {
   }, 1700);
 }
 
-window.addEventListener('DOMContentLoaded', redirectIfLoggedIn);
+function updateUserAvatar(user, avatarUrl) {
+  if (!avatarUrl || user.avatarUrl === avatarUrl) return user;
+
+  const users = getRegisteredUsers().map((item) => (
+    item.id === user.id ? { ...item, avatarUrl, authProvider: 'google' } : item
+  ));
+  saveRegisteredUsers(users);
+  return { ...user, avatarUrl, authProvider: 'google' };
+}
+
+function signInWithGoogleProfile(profile) {
+  if (!profile || !isValidEmail(profile.emailAddress || '')) {
+    showToast('Tidak bisa membaca email akun Google.');
+    return;
+  }
+
+  const emailAddress = profile.emailAddress.toLowerCase();
+  const existingUser = findUserByEmail(emailAddress);
+
+  if (!existingUser) {
+    redirectToRegister({
+      emailAddress,
+      fullName: profile.fullName || null,
+      avatarUrl: profile.avatarUrl || null,
+      authProvider: 'google'
+    });
+    return;
+  }
+
+  const user = updateUserAvatar(existingUser, profile.avatarUrl);
+  saveActiveUser(buildSession(user, { authProvider: 'google' }));
+
+  showToast('Masuk dengan Google berhasil! Mengarahkan ke halaman utama...');
+  window.setTimeout(() => {
+    window.location.href = 'index.html';
+  }, 1700);
+}
+
+function decodeGoogleCredential(credential) {
+  const payload = credential.split('.')[1];
+  if (!payload) return null;
+
+  const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+  const json = decodeURIComponent(
+    atob(padded)
+      .split('')
+      .map((char) => `%${`00${char.charCodeAt(0).toString(16)}`.slice(-2)}`)
+      .join('')
+  );
+
+  return JSON.parse(json);
+}
+
+function handleGoogleCredentialResponse(response) {
+  try {
+    const payload = decodeGoogleCredential(response.credential);
+    if (!payload) {
+      showToast('Respons Google tidak valid.');
+      return;
+    }
+
+    signInWithGoogleProfile({
+      emailAddress: payload.email,
+      fullName: payload.name,
+      avatarUrl: payload.picture || null
+    });
+  } catch (error) {
+    console.warn('Gagal membaca kredensial Google.', error);
+    showToast('Gagal memproses akun Google. Coba lagi.');
+  }
+}
+
+function isGoogleSdkReady() {
+  return Boolean(googleClientId && window.google && window.google.accounts && window.google.accounts.id);
+}
+
+function setupGoogleIdentity() {
+  if (!isGoogleSdkReady()) return;
+
+  window.google.accounts.id.initialize({
+    client_id: googleClientId,
+    callback: handleGoogleCredentialResponse
+  });
+
+  window.google.accounts.id.renderButton(googleNativeContainer, {
+    theme: 'outline',
+    size: 'large',
+    shape: 'pill',
+    text: 'signin_with',
+    locale: 'id',
+    width: 280
+  });
+
+  googleLoginButton.hidden = true;
+}
+
+function handleGoogleFallbackLogin() {
+  const emailAddress = window.prompt('Masukkan email akun Google Anda:');
+  if (emailAddress === null) return;
+
+  const trimmedEmail = emailAddress.trim();
+  if (!isValidEmail(trimmedEmail)) {
+    showToast('Masukkan alamat email Google yang valid.');
+    return;
+  }
+
+  const existingUser = findUserByEmail(trimmedEmail);
+  if (existingUser) {
+    signInWithGoogleProfile({
+      emailAddress: trimmedEmail,
+      fullName: existingUser.fullName,
+      avatarUrl: existingUser.avatarUrl || null
+    });
+    return;
+  }
+
+  const fullName = window.prompt('Masukkan nama sesuai akun Google Anda:');
+  signInWithGoogleProfile({
+    emailAddress: trimmedEmail,
+    fullName: fullName ? fullName.trim() : null,
+    avatarUrl: null
+  });
+}
+
+function handleGoogleLoginClick() {
+  if (isGoogleSdkReady()) {
+    window.google.accounts.id.prompt();
+    return;
+  }
+
+  handleGoogleFallbackLogin();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  redirectIfLoggedIn();
+  localStorage.removeItem(pendingGoogleKey);
+  window.setTimeout(setupGoogleIdentity, 600);
+});
+
 loginForm.addEventListener('submit', handleLogin);
+googleLoginButton.addEventListener('click', handleGoogleLoginClick);
