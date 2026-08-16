@@ -197,37 +197,26 @@
     shouldShowToast: function() {
       const currentPage = this.getCurrentPageName();
       const detectedPage = this.state.detectedPage;
-      
-      // Jangan tampilkan jika tidak ada progres aktif yang terdeteksi
+
+      // Tidak ada progres aktif yang terdeteksi
       if (!detectedPage) {
         return false;
       }
-      
-      // Jangan tampilkan jika user SEDANG di halaman yang SEDANG AKTIF memproses pesanan
-      // Halaman-halaman yang aktif memproses pesanan
-      const activeOrderPages = ['keranjang.html', 'checkout.html', 'success.html'];
-      if (activeOrderPages.includes(currentPage)) {
-        // Jangan tampilkan jika user SEDANG di halaman yang sedang memproses pesanan
-        // TAPI jika detectedPage berbeda dengan currentPage, berarti user meninggalkan halaman aktif
-        if (currentPage === detectedPage) {
-          return false; // User SEDANG di halaman yang ada pesanan aktif
-        }
-        // Jika currentPage != detectedPage, berarti user meninggalkan halaman aktif → tampilkan toast
-        return true;
-      }
-      
-      // Jangan tampilkan di halaman index (katalog) - halaman netral
-      if (currentPage === 'index.html') {
+
+      // Pengecualian mutlak: pop-up TIDAK BOLEH muncul di orders.html
+      // maupun halaman lain setelah pesanan masuk riwayat.
+      // Batas akhir kemunculan pop-up adalah tepat di halaman success.html.
+      if (currentPage === 'orders.html') {
         return false;
       }
-      
-      // Jangan tampilkan di halaman profil, contact, dll - halaman netral
-      const neutralPages = ['profile.html', 'contact.html', 'about.html', 'login.html', 'register.html'];
-      if (neutralPages.includes(currentPage)) {
+
+      // User sedang berada di halaman progres aktif itu sendiri → tidak perlu mengingatkan
+      if (currentPage === detectedPage) {
         return false;
       }
-      
-      // Tampilkan jika user meninggalkan halaman yang ada pesanan aktif
+
+      // Tampilkan di seluruh halaman lain (index, keranjang, checkout, success,
+      // profile, contact, about, hutang) selama ada progres aktif yang ditinggalkan.
       return true;
     },
 
