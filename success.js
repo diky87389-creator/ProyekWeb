@@ -195,11 +195,23 @@ function initializeSuccessPage() {
   const order = getLastOrder();
   renderLastOrder(order);
   if (order) {
-    storeOrderHistory(order);
+    // Hanya bersihkan keranjang. Pesanan TIDAK boleh otomatis masuk ke
+    // riwayat (dikyOrders) di sini — itu hanya boleh terjadi ketika user
+    // menekan tombol "Lihat Riwayat Pesanan" secara sah. Dengan begitu:
+    //  - Pop-up "Pantau Pesanan Kamu Disini" tetap aktif di halaman lain
+    //    selama pesanan belum dipindahkan ke riwayat.
+    //  - Akses manual ke orders.html lewat ubah URL tidak akan ikut
+    //    mencatatkan pesanan sementara ini ke riwayat.
     clearCart();
   }
 
   historyButton.addEventListener('click', () => {
+    // Catat pesanan ke riwayat HANYA saat tombol ini ditekan secara sah.
+    // Jika user mengakses orders.html via ubah URL manual, pesanan sementara
+    // (dikyLastOrder) tidak akan masuk ke dikyOrders.
+    if (order) {
+      storeOrderHistory(order);
+    }
     // Hapus data pesanan sementara seketika sebelum pindah ke riwayat,
     // agar halaman success tidak lagi menampilkan pesanan lama saat user
     // menekan tombol Back dari orders.html.
