@@ -475,19 +475,39 @@ function initializeCartPage() {
 
   modalCancel.addEventListener('click', closeConfirmationModal);
   modalConfirm.addEventListener('click', () => {
-    // Pindahkan data keranjang ke penyimpanan checkout
     const cart = getCart();
     if (cart.length > 0) {
-      localStorage.setItem(checkoutItemsKey, JSON.stringify(cart));
+      // Akumulasi pesanan: jangan timpa data checkout yang sudah ada.
+      // - Produk + varian yang sama (cartItemId sama) → tambahkan kuantitasnya.
+      // - Produk/varian berbeda → tambahkan sebagai baris item baru.
+      let existing = [];
+      try {
+        const raw = localStorage.getItem(checkoutItemsKey);
+        existing = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(existing)) existing = [];
+      } catch (e) {
+        existing = [];
+      }
+
+      cart.forEach((newItem) => {
+        const match = existing.find((entry) => entry.cartItemId === newItem.cartItemId);
+        if (match) {
+          match.quantity += newItem.quantity;
+        } else {
+          existing.push({ ...newItem });
+        }
+      });
+
+      localStorage.setItem(checkoutItemsKey, JSON.stringify(existing));
     }
-    
+
     // Bersihkan riwayat keranjang dan ringkasan
     localStorage.removeItem(cartKey);
     localStorage.removeItem(summaryKey);
-    
+
     // Update position tracker ke checkout.html
     localStorage.setItem('dikyLastPosition', 'checkout.html');
-    
+
     // Redirect ke checkout
     window.location.href = 'checkout.html';
   });
