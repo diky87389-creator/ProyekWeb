@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Keranjang - Warung Sayur Diky</title>
   <link rel="stylesheet" href="keranjang.css" />
+  <link rel="stylesheet" href="smart-guide-toast.css" />
 </head>
 <body>
   <header class="cart-header">
@@ -76,5 +77,11 @@
   </footer>
 
   <script src="keranjang.js"></script>
+  <script src="smart-guide-toast.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      SmartGuide.init();
+    });
+  </script>
 </body>
 </html>

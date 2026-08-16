@@ -1,4 +1,5 @@
 const cartKey = 'dikyCart';
+const checkoutItemsKey = 'dikyCheckoutItems'; // Penyimpanan khusus untuk checkout
 const activeUserKey = 'dikyActiveUser';
 const orderSummaryElement = document.getElementById('order-summary');
 const orderTotalElement = document.getElementById('order-total');
@@ -51,12 +52,18 @@ function formatPrice(value) {
 }
 
 function getCart() {
-  const raw = localStorage.getItem(cartKey);
+  // Prioritas: baca dari checkoutItemsKey dulu, jika kosong baru dari cartKey
+  let raw = localStorage.getItem(checkoutItemsKey);
+  if (!raw) {
+    raw = localStorage.getItem(cartKey);
+  }
+  
   try {
     return raw ? JSON.parse(raw) : [];
   } catch (error) {
     console.warn('Data keranjang tidak valid.', error);
     localStorage.removeItem(cartKey);
+    localStorage.removeItem(checkoutItemsKey);
     return [];
   }
 }
@@ -230,26 +237,26 @@ async function submitOrder() {
   const modal = document.querySelector('.loading-modal');
   const loadingBar = modal.querySelector('.loading-bar');
   const loadingPercent = modal.querySelector('.loading-percent');
-  
+
   // Disable button and show modal
   button.disabled = true;
   modal.classList.add('active');
-  
+
   // Simulate loading progress
   for (let i = 0; i <= 100; i++) {
     await new Promise(resolve => setTimeout(resolve, 30)); // 30ms per step
     loadingBar.style.width = `${i}%`;
     loadingPercent.textContent = `${i}%`;
-    
+
     // Slow down near completion for better UX
     if (i > 80) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
-  
+
   // Brief pause at 100% before redirect
   await new Promise(resolve => setTimeout(resolve, 300));
-  
+
   const orderData = buildOrderData();
   const paymentMethod = getSelectedPaymentMethod();
 
@@ -258,6 +265,21 @@ async function submitOrder() {
   }
 
   localStorage.setItem('dikyLastOrder', JSON.stringify(orderData));
+  localStorage.setItem('dikyCheckoutForm', JSON.stringify({
+    customerName: document.getElementById('customer-name').value.trim(),
+    customerPhone: document.getElementById('customer-phone').value.trim(),
+    customerAddress: document.getElementById('customer-address').value.trim(),
+    deliveryMethod: getSelectedDeliveryMethod(),
+    paymentMethod: getSelectedPaymentMethod(),
+    timestamp: new Date().toISOString()
+  }));
+  
+  // Bersihkan data checkout items setelah order disimpan
+  localStorage.removeItem(checkoutItemsKey);
+  
+  // Update position tracker ke success.html
+  localStorage.setItem('dikyLastPosition', 'success.html');
+  
   window.location.href = 'success.html';
 }
 

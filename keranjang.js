@@ -1,4 +1,5 @@
 const cartKey = 'dikyCart';
+const checkoutItemsKey = 'dikyCheckoutItems'; // Penyimpanan khusus untuk checkout
 const summaryKey = 'dikyCheckoutSummary';
 const activeUserKey = 'dikyActiveUser';
 const cartList = document.getElementById('cart-list');
@@ -11,6 +12,73 @@ const modalItems = document.getElementById('modal-items');
 const modalTotal = document.getElementById('modal-total');
 const modalCancel = document.getElementById('modal-cancel');
 const modalConfirm = document.getElementById('modal-confirm');
+
+// Product data for unit selection
+const products = [
+  {
+    id: 'bayam-organik',
+    name: 'Bayam Organik',
+    description: 'Bayam segar dengan daun hijau lebat, ideal untuk tumisan dan sayur bening.',
+    image: 'images/Toko Sayur Online.png',
+    units: [
+      { name: 'per ikat kecil', price: 3000 },
+      { name: 'per ikat sedang', price: 5000 }
+    ]
+  },
+  {
+    id: 'wortel-fresh',
+    name: 'Wortel Fresh',
+    description: 'Wortel manis dengan tekstur renyah, cocok untuk salad dan sup sayur.',
+    image: 'images/Toko Sayur Online (1).png',
+    units: [
+      { name: 'per buah', price: 1500 },
+      { name: 'per 250g', price: 4500 },
+      { name: 'per 500g', price: 8500 },
+      { name: 'per ikat', price: 5000 }
+    ]
+  },
+  {
+    id: 'selada-keriting',
+    name: 'SELADA KERITING',
+    description: 'Selada hijau segar yang renyah, sempurna untuk menu sehat harian.',
+    image: 'images/Toko Sayur Online (2).png',
+    units: [
+      { name: 'per ikat kecil', price: 2500 },
+      { name: 'per bungkus/pack', price: 4000 }
+    ]
+  },
+  {
+    id: 'tomat-cerry',
+    name: 'Tomat Cherry',
+    description: 'Tomat ceri manis dengan warna merah cerah, cocok untuk camilan dan garnish.',
+    image: 'images/Toko Sayur Online (3).png',
+    units: [
+      { name: 'per buah/biji', price: 1000 },
+      { name: 'per pack 100g', price: 6000 },
+      { name: 'per pack 250g', price: 12000 }
+    ]
+  },
+  {
+    id: 'terong-ungu',
+    name: 'Terong Ungu',
+    description: 'Terong segar dengan kulit mengkilap, cocok untuk sate, balado, dan tumisan.',
+    image: 'images/Toko Sayur Online (4).png',
+    units: [
+      { name: 'per buah', price: 2000 },
+      { name: 'per paket (isi 3 buah)', price: 5000 }
+    ]
+  },
+  {
+    id: 'buncis-segar',
+    name: 'Buncis Segar',
+    description: 'Buncis hijau renta dengan rasa manis alami, pilihan sehat untuk sayur campur.',
+    image: 'images/Toko Sayur Online (5).png',
+    units: [
+      { name: 'per ikat kecil', price: 3000 },
+      { name: 'per 250g', price: 6000 }
+    ]
+  }
+];
 
 function escapeHTML(value) {
   return String(value)
@@ -93,17 +161,71 @@ function updateTotals(cart) {
   cartStatus.textContent = totalItems === 0 ? 'Keranjang kosong' : `${totalItems} produk siap checkout`;
 }
 
-function handleQuantityChange(productId, delta) {
+function saveCheckoutSummary(cart) {
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const summary = {
+    totalItems,
+    totalPrice,
+    updatedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem(summaryKey, JSON.stringify(summary));
+}
+
+function updateTotals(cart) {
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  summaryItems.textContent = totalItems;
+  summaryTotal.textContent = formatPrice(totalPrice);
+  checkoutButton.disabled = totalItems === 0;
+  cartStatus.textContent = totalItems === 0 ? 'Keranjang kosong' : `${totalItems} produk siap checkout`;
+}
+
+function handleQuantityChange(cartItemId, delta) {
   const cart = getCart();
-  const item = cart.find((entry) => entry.id === productId);
+  const item = cart.find((entry) => entry.cartItemId === cartItemId);
   if (!item) return;
 
   item.quantity = Math.max(1, item.quantity + delta);
   saveCart(cart);
 }
 
-function handleItemRemove(productId) {
-  const cart = getCart().filter((entry) => entry.id !== productId);
+function handleItemRemove(cartItemId) {
+  const cart = getCart().filter((entry) => entry.cartItemId !== cartItemId);
+  saveCart(cart);
+}
+
+function handleUnitChange(cartItemId, newUnitIndex) {
+  const cart = getCart();
+  const item = cart.find((entry) => entry.cartItemId === cartItemId);
+  if (!item) return;
+
+  const product = products.find((p) => p.id === item.id);
+  if (!product || !product.units[newUnitIndex]) return;
+
+  const newUnit = product.units[newUnitIndex];
+  const newCartItemId = `${item.id}-${newUnitIndex}`;
+
+  // Check if the new unit combination already exists in cart
+  const existingItem = cart.find((entry) => entry.cartItemId === newCartItemId);
+  if (existingItem) {
+    // Merge quantities if exists
+    existingItem.quantity += item.quantity;
+    // Remove old item
+    const index = cart.findIndex((entry) => entry.cartItemId === cartItemId);
+    if (index > -1) {
+      cart.splice(index, 1);
+    }
+  } else {
+    // Update the current item with new unit
+    item.cartItemId = newCartItemId;
+    item.unit = newUnit.name;
+    item.price = newUnit.price;
+    item.unitIndex = newUnitIndex;
+  }
+
   saveCart(cart);
 }
 
@@ -154,6 +276,48 @@ function createCartItemElement(item) {
 
   itemHeader.append(itemInfo, itemPrice);
 
+  // Unit selector
+  const product = products.find((p) => p.id === item.id);
+  if (product && product.units.length > 1) {
+    const unitSelector = document.createElement('div');
+    unitSelector.className = 'unit-selector';
+
+    const unitSelectorLabel = document.createElement('div');
+    unitSelectorLabel.className = 'unit-selector-label';
+    unitSelectorLabel.textContent = 'Pilih satuan:';
+
+    const unitOptions = document.createElement('div');
+    unitOptions.className = 'unit-options';
+
+    product.units.forEach((unit, index) => {
+      const unitOption = document.createElement('label');
+      unitOption.className = 'unit-option';
+
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = `unit-${item.cartItemId}`;
+      radio.value = index;
+      if (index === item.unitIndex) radio.checked = true;
+      radio.addEventListener('change', () => handleUnitChange(item.cartItemId, index));
+
+      const unitLabel = document.createElement('span');
+      unitLabel.className = 'unit-label';
+      unitLabel.textContent = unit.name;
+
+      const unitPrice = document.createElement('span');
+      unitPrice.className = 'unit-price';
+      unitPrice.textContent = formatPrice(unit.price);
+
+      unitOption.append(radio, unitLabel, unitPrice);
+      unitOptions.append(unitOption);
+    });
+
+    unitSelector.append(unitSelectorLabel, unitOptions);
+    itemContent.append(itemHeader, unitSelector);
+  } else {
+    itemContent.append(itemHeader);
+  }
+
   const itemDescription = document.createElement('p');
   itemDescription.className = 'item-description';
   itemDescription.textContent = 'Jumlah di keranjang: ';
@@ -171,7 +335,7 @@ function createCartItemElement(item) {
   const decreaseButton = document.createElement('button');
   decreaseButton.type = 'button';
   decreaseButton.dataset.action = 'decrease';
-  decreaseButton.dataset.id = item.id;
+  decreaseButton.dataset.id = item.cartItemId;
   decreaseButton.textContent = '-';
 
   const quantityValue = document.createElement('span');
@@ -180,7 +344,7 @@ function createCartItemElement(item) {
   const increaseButton = document.createElement('button');
   increaseButton.type = 'button';
   increaseButton.dataset.action = 'increase';
-  increaseButton.dataset.id = item.id;
+  increaseButton.dataset.id = item.cartItemId;
   increaseButton.textContent = '+';
 
   quantityPicker.append(decreaseButton, quantityValue, increaseButton);
@@ -189,11 +353,11 @@ function createCartItemElement(item) {
   removeButton.className = 'remove-button';
   removeButton.type = 'button';
   removeButton.dataset.action = 'remove';
-  removeButton.dataset.id = item.id;
+  removeButton.dataset.id = item.cartItemId;
   removeButton.textContent = 'Hapus';
 
   itemControls.append(quantityPicker, removeButton);
-  itemContent.append(itemHeader, itemDescription, itemControls);
+  itemContent.append(itemDescription, itemControls);
 
   const priceBlock = document.createElement('div');
   priceBlock.className = 'price-block';
@@ -226,14 +390,14 @@ function renderCart() {
   cartList.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', () => {
       const action = button.dataset.action;
-      const productId = button.dataset.id;
+      const cartItemId = button.dataset.id;
 
       if (action === 'increase') {
-        handleQuantityChange(productId, 1);
+        handleQuantityChange(cartItemId, 1);
       } else if (action === 'decrease') {
-        handleQuantityChange(productId, -1);
+        handleQuantityChange(cartItemId, -1);
       } else if (action === 'remove') {
-        handleItemRemove(productId);
+        handleItemRemove(cartItemId);
       }
     });
   });
@@ -311,6 +475,20 @@ function initializeCartPage() {
 
   modalCancel.addEventListener('click', closeConfirmationModal);
   modalConfirm.addEventListener('click', () => {
+    // Pindahkan data keranjang ke penyimpanan checkout
+    const cart = getCart();
+    if (cart.length > 0) {
+      localStorage.setItem(checkoutItemsKey, JSON.stringify(cart));
+    }
+    
+    // Bersihkan riwayat keranjang dan ringkasan
+    localStorage.removeItem(cartKey);
+    localStorage.removeItem(summaryKey);
+    
+    // Update position tracker ke checkout.html
+    localStorage.setItem('dikyLastPosition', 'checkout.html');
+    
+    // Redirect ke checkout
     window.location.href = 'checkout.html';
   });
 

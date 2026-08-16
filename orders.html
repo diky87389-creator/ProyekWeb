@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Riwayat Pesanan - Warung Sayur Diky</title>
   <link rel="stylesheet" href="orders.css" />
+  <link rel="stylesheet" href="smart-guide-toast.css" />
 </head>
 <body>
   <header class="orders-header">
@@ -40,5 +41,11 @@
   </footer>
 
   <script src="orders.js"></script>
+  <script src="smart-guide-toast.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      SmartGuide.init();
+    });
+  </script>
 </body>
 </html>

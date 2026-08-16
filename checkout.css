@@ -310,6 +310,12 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(62, 147, 97, 0.12);
 }
 
+.delivery-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
 .payment-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -317,23 +323,71 @@ textarea:focus {
 }
 
 .radio-item {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem 1rem;
-  border-radius: 1rem;
-  border: 1px solid rgba(66, 136, 82, 0.18);
-  background: var(--surface-soft);
+  gap: 0.85rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 1.5rem;
+  border: 1.5px solid rgba(77, 144, 81, 0.25);
+  background: rgba(244, 251, 247, 0.6);
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  transition: all 0.25s ease;
+  position: relative;
 }
 
-.radio-item input {
-  accent-color: var(--primary);
+.radio-item input[type="radio"] {
+  appearance: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.radio-item input[type="radio"]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 0.65rem;
+  height: 0.65rem;
+  background: var(--primary-strong);
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.radio-item input[type="radio"]:checked::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.radio-item span {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.98rem;
+  transition: all 0.25s ease;
 }
 
 .radio-item:hover {
-  background: rgba(62, 147, 97, 0.08);
+  background: rgba(62, 147, 97, 0.1);
+  border-color: rgba(62, 147, 97, 0.4);
+  transform: translateY(-1px);
+}
+
+.radio-item input[type="radio"]:checked + span {
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.radio-item:has(input[type="radio"]:checked) {
+  background: rgba(62, 147, 97, 0.12);
+  border-color: var(--primary);
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(62, 147, 97, 0.15);
 }
 
 .order-summary {
@@ -424,12 +478,20 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .delivery-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .payment-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 650px) {
+  .delivery-options {
+    grid-template-columns: 1fr;
+  }
+
   .payment-options {
     grid-template-columns: 1fr;
   }

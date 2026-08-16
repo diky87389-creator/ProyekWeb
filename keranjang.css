@@ -230,6 +230,96 @@ body {
   line-height: 1.7;
 }
 
+.unit-selector {
+  margin: 0.5rem 0;
+}
+
+.unit-selector-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.unit-options {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.unit-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  border: 1.5px solid rgba(77, 144, 81, 0.25);
+  background: rgba(244, 251, 247, 0.6);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.unit-option input[type="radio"] {
+  appearance: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.unit-option input[type="radio"]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 0.45rem;
+  height: 0.45rem;
+  background: var(--primary);
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.unit-option input[type="radio"]:checked::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.unit-option:hover {
+  background: rgba(62, 147, 97, 0.1);
+  border-color: rgba(62, 147, 97, 0.4);
+  transform: translateY(-1px);
+}
+
+.unit-option:has(input[type="radio"]:checked) {
+  background: rgba(62, 147, 97, 0.12);
+  border-color: var(--primary);
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(62, 147, 97, 0.15);
+}
+
+.unit-label {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.85rem;
+  transition: all 0.25s ease;
+}
+
+.unit-option:has(input[type="radio"]:checked) .unit-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.unit-price {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
 .item-controls {
   display: flex;
   align-items: center;
@@ -491,5 +581,15 @@ body {
   .modal-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .unit-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 661px) {
+  .unit-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

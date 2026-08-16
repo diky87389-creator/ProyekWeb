@@ -27,50 +27,65 @@ const products = [
   {
     id: 'bayam-organik',
     name: 'Bayam Organik',
-    price: 12400,
-    unit: 'ikat',
     description: 'Bayam segar dengan daun hijau lebat, ideal untuk tumisan dan sayur bening.',
-    image: 'images/Toko Sayur Online.png'
+    image: 'images/Toko Sayur Online.png',
+    units: [
+      { name: 'per ikat kecil', price: 3000 },
+      { name: 'per ikat sedang', price: 5000 }
+    ]
   },
   {
     id: 'wortel-fresh',
     name: 'Wortel Fresh',
-    price: 18000,
-    unit: 'kg',
     description: 'Wortel manis dengan tekstur renyah, cocok untuk salad dan sup sayur.',
-    image: 'images/Toko Sayur Online (1).png'
+    image: 'images/Toko Sayur Online (1).png',
+    units: [
+      { name: 'per buah', price: 1500 },
+      { name: 'per 250g', price: 4500 },
+      { name: 'per 500g', price: 8500 },
+      { name: 'per ikat', price: 5000 }
+    ]
   },
   {
     id: 'selada-keriting',
-    name: 'Selada Keriting',
-    price: 9500,
-    unit: 'buah',
+    name: 'SELADA KERITING',
     description: 'Selada hijau segar yang renyah, sempurna untuk menu sehat harian.',
-    image: 'images/Toko Sayur Online (2).png'
+    image: 'images/Toko Sayur Online (2).png',
+    units: [
+      { name: 'per ikat kecil', price: 2500 },
+      { name: 'per bungkus/pack', price: 4000 }
+    ]
   },
   {
     id: 'tomat-cerry',
-    name: 'Tomat Cerry',
-    price: 22000,
-    unit: 'pak',
+    name: 'Tomat Cherry',
     description: 'Tomat ceri manis dengan warna merah cerah, cocok untuk camilan dan garnish.',
-    image: 'images/Toko Sayur Online (3).png'
+    image: 'images/Toko Sayur Online (3).png',
+    units: [
+      { name: 'per buah/biji', price: 1000 },
+      { name: 'per pack 100g', price: 6000 },
+      { name: 'per pack 250g', price: 12000 }
+    ]
   },
   {
     id: 'terong-ungu',
     name: 'Terong Ungu',
-    price: 17000,
-    unit: 'kg',
     description: 'Terong segar dengan kulit mengkilap, cocok untuk sate, balado, dan tumisan.',
-    image: 'images/Toko Sayur Online (4).png'
+    image: 'images/Toko Sayur Online (4).png',
+    units: [
+      { name: 'per buah', price: 2000 },
+      { name: 'per paket (isi 3 buah)', price: 5000 }
+    ]
   },
   {
     id: 'buncis-segar',
     name: 'Buncis Segar',
-    price: 21000,
-    unit: 'ikat',
     description: 'Buncis hijau renta dengan rasa manis alami, pilihan sehat untuk sayur campur.',
-    image: 'images/Toko Sayur Online (5).png'
+    image: 'images/Toko Sayur Online (5).png',
+    units: [
+      { name: 'per ikat kecil', price: 3000 },
+      { name: 'per 250g', price: 6000 }
+    ]
   }
 ];
 
@@ -133,17 +148,24 @@ function addToCart(productId) {
     return;
   }
 
-  const existingItem = cart.find((item) => item.id === productId);
+  // Use default unit (index 0)
+  const defaultUnitIndex = 0;
+  const selectedUnit = product.units[defaultUnitIndex];
+  const cartItemId = `${productId}-${defaultUnitIndex}`;
+
+  const existingItem = cart.find((item) => item.cartItemId === cartItemId);
   if (existingItem) {
     existingItem.quantity += 1;
   } else {
     cart.push({
+      cartItemId: cartItemId,
       id: product.id,
       name: product.name,
-      price: product.price,
-      unit: product.unit,
+      price: selectedUnit.price,
+      unit: selectedUnit.name,
       image: product.image,
-      quantity: 1
+      quantity: 1,
+      unitIndex: defaultUnitIndex
     });
   }
 
@@ -171,23 +193,11 @@ function createProductCard(product) {
   productTitle.className = 'product-title';
   productTitle.textContent = product.name;
 
-  const meta = document.createElement('div');
-  meta.className = 'product-meta';
-
-  const unit = document.createElement('span');
-  unit.textContent = product.unit;
-
-  const price = document.createElement('span');
-  price.className = 'product-price';
-  price.textContent = formatPrice(product.price);
-
-  meta.append(unit, price);
-
   const productDescription = document.createElement('p');
   productDescription.className = 'product-description';
   productDescription.textContent = product.description;
 
-  cardInfo.append(productTitle, meta, productDescription);
+  cardInfo.append(productTitle, productDescription);
 
   const productActions = document.createElement('div');
   productActions.className = 'product-actions';
@@ -214,6 +224,16 @@ function renderProducts() {
 
 function initPage() {
   if (!requireLogin()) return;
+
+  // Clean up old cart data structure if exists
+  const cart = getCart();
+  const needsMigration = cart.some(item => !item.cartItemId);
+
+  if (needsMigration) {
+    console.log('Migrating old cart data to new structure...');
+    localStorage.removeItem(cartKey);
+  }
+
   renderProducts();
   updateCartCount(getCart());
 }

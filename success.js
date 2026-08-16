@@ -77,6 +77,8 @@ function saveOrders(orders) {
 
 function clearCart() {
   localStorage.removeItem('dikyCart');
+  localStorage.removeItem('dikyCheckoutForm');
+  localStorage.removeItem('dikyLastPosition');
 }
 
 function renderLastOrder(order) {
