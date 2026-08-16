@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Manajemen Hutang - Warung Sayur Diky</title>
   <link rel="stylesheet" href="hutang.css" />
+  <link rel="stylesheet" href="smart-guide-toast.css" />
 </head>
 <body>
   <header class="page-header">
@@ -163,5 +164,11 @@
   <div class="toast" id="toast">Tersimpan</div>
 
   <script src="hutang.js"></script>
+  <script src="smart-guide-toast.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      SmartGuide.init();
+    });
+  </script>
 </body>
 </html>
