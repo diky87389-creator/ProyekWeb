@@ -200,6 +200,11 @@ function initializeSuccessPage() {
   }
 
   historyButton.addEventListener('click', () => {
+    // Hapus data pesanan sementara seketika sebelum pindah ke riwayat,
+    // agar halaman success tidak lagi menampilkan pesanan lama saat user
+    // menekan tombol Back dari orders.html.
+    localStorage.removeItem(lastOrderKey);
+    localStorage.removeItem('dikyLastPosition');
     window.location.href = 'orders.html';
   });
 }
