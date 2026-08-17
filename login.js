@@ -128,7 +128,7 @@ function handleLogin(event) {
 
   const user = findUserByEmail(emailAddress);
   if (!user) {
-    redirectToRegister({ emailAddress: emailAddress.toLowerCase(), fullName: null, avatarUrl: null, authProvider: 'email' });
+    showToast('Email belum terdaftar.');
     return;
   }
 
@@ -145,17 +145,7 @@ function handleLogin(event) {
   }, 1700);
 }
 
-function updateUserAvatar(user, avatarUrl) {
-  if (!avatarUrl || user.avatarUrl === avatarUrl) return user;
-
-  const users = getRegisteredUsers().map((item) => (
-    item.id === user.id ? { ...item, avatarUrl, authProvider: 'google' } : item
-  ));
-  saveRegisteredUsers(users);
-  return { ...user, avatarUrl, authProvider: 'google' };
-}
-
-function signInWithGoogleProfile(profile) {
+function signUpWithGoogleProfile(profile) {
   if (!profile || !isValidEmail(profile.emailAddress || '')) {
     showToast('Tidak bisa membaca email akun Google.');
     return;
@@ -164,23 +154,17 @@ function signInWithGoogleProfile(profile) {
   const emailAddress = profile.emailAddress.toLowerCase();
   const existingUser = findUserByEmail(emailAddress);
 
-  if (!existingUser) {
-    redirectToRegister({
-      emailAddress,
-      fullName: profile.fullName || null,
-      avatarUrl: profile.avatarUrl || null,
-      authProvider: 'google'
-    });
+  if (existingUser) {
+    showToast('Email sudah terdaftar. Silakan login dengan email dan kata sandi.');
     return;
   }
 
-  const user = updateUserAvatar(existingUser, profile.avatarUrl);
-  saveActiveUser(buildSession(user, { authProvider: 'google' }));
-
-  showToast('Masuk dengan Google berhasil! Mengarahkan ke halaman utama...');
-  window.setTimeout(() => {
-    window.location.href = 'index.html';
-  }, 1700);
+  redirectToRegister({
+    emailAddress,
+    fullName: profile.fullName || null,
+    avatarUrl: profile.avatarUrl || null,
+    authProvider: 'google'
+  });
 }
 
 function decodeGoogleCredential(credential) {
@@ -207,7 +191,7 @@ function handleGoogleCredentialResponse(response) {
       return;
     }
 
-    signInWithGoogleProfile({
+    signUpWithGoogleProfile({
       emailAddress: payload.email,
       fullName: payload.name,
       avatarUrl: payload.picture || null
@@ -242,7 +226,7 @@ function setupGoogleIdentity() {
   googleLoginButton.hidden = true;
 }
 
-function handleGoogleFallbackLogin() {
+function handleGoogleFallbackSignUp() {
   const emailAddress = window.prompt('Masukkan email akun Google Anda:');
   if (emailAddress === null) return;
 
@@ -252,31 +236,26 @@ function handleGoogleFallbackLogin() {
     return;
   }
 
-  const existingUser = findUserByEmail(trimmedEmail);
-  if (existingUser) {
-    signInWithGoogleProfile({
-      emailAddress: trimmedEmail,
-      fullName: existingUser.fullName,
-      avatarUrl: existingUser.avatarUrl || null
-    });
+  if (findUserByEmail(trimmedEmail)) {
+    showToast('Email sudah terdaftar. Silakan login dengan email dan kata sandi.');
     return;
   }
 
   const fullName = window.prompt('Masukkan nama sesuai akun Google Anda:');
-  signInWithGoogleProfile({
+  signUpWithGoogleProfile({
     emailAddress: trimmedEmail,
     fullName: fullName ? fullName.trim() : null,
     avatarUrl: null
   });
 }
 
-function handleGoogleLoginClick() {
+function handleGoogleSignUpClick() {
   if (isGoogleSdkReady()) {
     window.google.accounts.id.prompt();
     return;
   }
 
-  handleGoogleFallbackLogin();
+  handleGoogleFallbackSignUp();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -286,4 +265,4 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 loginForm.addEventListener('submit', handleLogin);
-googleLoginButton.addEventListener('click', handleGoogleLoginClick);
+googleLoginButton.addEventListener('click', handleGoogleSignUpClick);
