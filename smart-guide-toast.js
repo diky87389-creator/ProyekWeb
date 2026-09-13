@@ -145,21 +145,64 @@
     },
 
     /**
+     * Baca array order dari sebuah key localStorage.
+     */
+    readOrdersFromKey: function (key, source) {
+      if (!key) return [];
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+        const records = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
+        return records
+          .filter(function (r) { return r && typeof r === 'object'; })
+          .map(function (r) { return Object.assign({ source: source }, r); });
+      } catch (e) {
+        return [];
+      }
+    },
+
+    /**
+     * Gabungkan order dari dikyOrders_ (sumber admin, otoritatif) dan
+     * riwayatPesanan_ (salinan tampilan user). Bila order id sama ada di
+     * kedua sumber, status dari dikyOrders_ (admin) yang dipakai, sehingga
+     * perubahan admin (mis. Dikirim -> Selesai) langsung dikenali dan tidak
+     * tertimpa status lama di riwayatPesanan_.
+     */
+    mergeAuthoritativeOrders: function () {
+      const userKeys = this.getUserKeys() || {};
+      const adminOrders = this.readOrdersFromKey(userKeys.orders, 'orders');
+      const historyOrders = this.readOrdersFromKey(userKeys.orderHistory, 'orderHistory');
+      const merged = {};
+      const byId = function (order) { return String(order.id || order.orderId || ''); };
+      adminOrders.forEach(function (order) { if (byId(order)) merged[byId(order)] = order; });
+      historyOrders.forEach(function (order) {
+        const id = byId(order);
+        if (!id) return;
+        if (!merged[id]) {
+          merged[id] = order;
+        } else {
+          // Admin (dikyOrders_) otoritatif; abaikan status lama riwayat.
+          merged[id] = Object.assign({}, order, merged[id]);
+        }
+      });
+      return Object.keys(merged).map(function (id) { return merged[id]; });
+    },
+
+    /**
      * Deteksi SATU tahap aktif pesanan (paling lanjut yang belum selesai).
      * Mengembalikan { stage, tab, orderId } atau null.
      */
     detectActiveStage: function () {
       const userKeys = this.getUserKeys() || {};
       const hasData = (key) => this.hasData(key);
-      const activeOrders = this.getActiveOrders();
+      const finishedStatuses = ['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan', 'completed', 'cancelled'];
 
       // 1) Tahap orders (Dikemas / Dikirim / Silahkan Untuk Diambil):
-      //    pesanan nyata yang sudah masuk riwayat/orders.
-      const orderRecords = activeOrders.filter(function (order) {
-        if (order.source !== 'orders' && order.source !== 'orderHistory') return false;
+      //    Gabungkan dikyOrders_ (admin) + riwayatPesanan_ (user), prioritaskan
+      //    status admin. Hanya yang belum selesai menjadi kandidat.
+      const mergedOrders = this.mergeAuthoritativeOrders();
+      const orderRecords = mergedOrders.filter(function (order) {
         const status = String(order.status || '').trim().toLowerCase();
-        // semua status non-selesai di sini termasuk tahap orders.
-        return !['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan', 'completed', 'cancelled'].includes(status);
+        return !finishedStatuses.includes(status);
       });
 
       if (orderRecords.length) {
