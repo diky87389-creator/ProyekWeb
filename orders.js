@@ -254,6 +254,12 @@ function updateCourierLocations() {
 function renderOrders() {
   const orders = getOrders();
   renderTabs(orders);
+  // Re-evaluasi Smart Guide segera setelah tab dirender agar pop-up
+  // langsung sembunyi di tab tahap aktif (mis. Dikirim) tanpa menunggu
+  // peta Leaflet memuat se sempurna.
+  if (window.SmartGuide && typeof window.SmartGuide.init === 'function') {
+    window.SmartGuide.init();
+  }
   updateClearHistoryVisibility(orders);
   destroyRenderedMaps();
   clearElement(ordersList);
@@ -415,11 +421,6 @@ window.addEventListener('beforeunload', function () {
   destroyRenderedMaps();
 });
 
-window.addEventListener('DOMContentLoaded', function () {
-  if (window.SmartGuide && typeof window.SmartGuide.init === 'function') {
-    window.SmartGuide.init();
-  }
-});
 function removeOrder(orderId) {
   const orders = getOrders().filter((order) => order.id !== orderId);
   saveOrders(orders);
