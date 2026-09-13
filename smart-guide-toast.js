@@ -4,34 +4,67 @@
  * Warung Sayur Diky - Modular Component
  * ==========================================
  *
- * Fitur: Floating toast notification untuk memandu pengguna
- * ke halaman pesanan aktif mereka dalam alur e-commerce.
+ * Fitur: Floating toast notification "Pantau Pesanan Kamu Disini" untuk
+ * memandu pengguna kembali ke halaman tempat pesanan aktif mereka berada
+ * dalam alur e-commerce.
+ *
+ * MODEL TAHAP (satu pesanan mengalir melalui tahap berikut):
+ *   keranjang -> checkout -> success -> dikemas -> dikirim -> selesai
  *
  * ATURAN KEMUNCULAN MUTLAK:
- * 1. Pop-up "Pantau Pesanan Kamu Disini" HANYA BOLEH MUNCUL di halaman lain
- *    di mana pesanan tersebut TIDAK sedang berada.
- * 2. Jika pesanan aktif ada di keranjang.html, JANGAN munculkan pop-up di keranjang.html,
- *    melainkan munculkan di halaman lain (index.html, profile.html, about.html, dll.).
- * 3. Begitu juga sebaliknya: jika pesanan aktif ada di checkout.html atau success.html,
- *    jangan munculkan pop-up di halaman tempat pesanan itu berada, tetapi munculkan di halaman lainnya.
- * 4. Ketika pengguna menekan tombol "Kembali" (Back) di browser, pop-up pengingat tetap muncul
- *    jika masih ada pesanan aktif di tahapan lain.
- * 5. Ketika pengguna mengklik pop-up "Pantau Pesanan Kamu Disini", sistem memberikan izin navigasi
- *    sah ke halaman target sehingga proteksi Anti-URL bypass tidak menolaknya.
+ * 1. Sistem mendeteksi SATU tahap aktif (paling lanjut yang belum selesai).
+ * 2. Pop-up "Pantau Pesanan Kamu Disini" HANYA MUNCUL di halaman SELAIN
+ *    halaman tempat pesanan aktif berada.
+ * 3. Jika pesanan aktif berada di keranjang.html, pop-up disembunyikan di
+ *    keranjang.html dan ditampilkan di halaman lain (index.html, checkout.html,
+ *    success.html, hutang.html, profile.html, about.html, contact.html,
+ *    orders.html pada tab lain). Klik tombol -> keranjang.html.
+ *    Berlaku serupa untuk checkout.html, success.html, dan orders.html
+ *    (tab Dikemas / Dikirim / Silahkan Untuk Diambil).
+ * 4. Di orders.html, pop-up disembunyikan saat tab aktif = tab tahap aktif
+ *    (Dikemas atau Dikirim/Silahkan Untuk Diambil), dan ditampilkan saat
+ *    user berada di tab lain.
+ * 5. Klik tombol mengarah ke halaman tahap aktif (orders.html membawa tab
+ *    yang benar via sessionStorage) dengan otorisasi navigasi sah.
+ * 6. Begitu pesanan mencapai tab Selesai, pop-up disembunyikan di semua halaman.
+ * 7. Pop-up tetap muncul setelah tombol Back browser selama tahap belum selesai.
  */
 
-(function(window) {
+(function (window) {
   'use strict';
 
+  // Urutan tahap dari paling awal ke paling lanjut. 'selesai' = tersembunyi.
+  const STAGE_ORDER = ['keranjang', 'checkout', 'success', 'dikemas', 'dikirim'];
+  const STAGE_PAGE = {
+    keranjang: 'keranjang.html',
+    checkout: 'checkout.html',
+    success: 'success.html',
+    dikemas: 'orders.html',
+    dikirim: 'orders.html'
+  };
+
+  function rankOf(stage) {
+    const index = STAGE_ORDER.indexOf(stage);
+    return index === -1 ? -99 : index;
+  }
+
+  // Status order (dari storage) -> nilai tab orders.html yang sesuai.
+  function tabForStatus(status) {
+    const value = String(status || '').trim().toLowerCase();
+    if (value === 'dikirim' || value === 'siap_diambil') return value;
+    // menunggu / diproses / dikemas / kosong -> Dikemas
+    return 'dikemas';
+  }
+
   const SmartGuide = {
-    // State internal. Semua halaman memakai satu instance toast ini.
     state: {
-      lastPosition: null,
-      detectedPage: null,
+      stage: null,
+      tab: null,
+      orderId: null,
+      targetPage: null,
       initialized: false
     },
 
-    // Elemen DOM
     elements: {
       toast: null,
       content: null,
@@ -39,10 +72,7 @@
       closeBtn: null
     },
 
-    /**
-     * Get dynamic user-specific localStorage keys
-     */
-    getUserKeys: function() {
+    getUserKeys: function () {
       if (typeof getUserStorageKey !== 'function') return null;
       return {
         cart: getUserStorageKey('cart'),
@@ -57,21 +87,31 @@
       };
     },
 
-    /**
-     * Normalisasi path URL menjadi nama halaman yang konsisten.
-     */
-    getCurrentPageName: function() {
+    getCurrentPageName: function () {
       const path = String(window.location.pathname || '');
       const fileName = path.split('/').filter(Boolean).pop() || 'index.html';
       const cleanName = fileName.split('?')[0].split('#')[0].toLowerCase();
       return cleanName === 'index' ? 'index.html' : cleanName;
     },
 
-    getActiveOrders: function() {
+    hasData: function (key) {
+      if (!key) return false;
+      try {
+        const data = localStorage.getItem(key);
+        if (!data) return false;
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) return parsed.length > 0;
+        if (typeof parsed === 'object') return Object.keys(parsed).length > 0;
+        return !!parsed;
+      } catch (e) {
+        return false;
+      }
+    },
+
+    getActiveOrders: function () {
       const finishedStatuses = ['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan', 'completed', 'cancelled'];
       const userKeys = this.getUserKeys();
       const result = [];
-      const matchedKeys = [];
       if (!userKeys) return result;
 
       const sources = [
@@ -82,18 +122,21 @@
         ['cart', userKeys.cart, true],
         ['checkoutItems', userKeys.checkoutItems, true]
       ];
-      sources.forEach(([source, key, isCart]) => {
+      sources.forEach(function (entry) {
+        const source = entry[0];
+        const key = entry[1];
+        const isCart = entry[2];
         if (!key) return;
         try {
           const parsed = JSON.parse(localStorage.getItem(key) || 'null');
           const records = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
-          const active = records.filter((record) => {
-            if (!record || typeof record !== 'object') return false;
+          records.forEach(function (record) {
+            if (!record || typeof record !== 'object') return;
             const status = String(record.status || '').trim().toLowerCase();
-            return isCart || !finishedStatuses.includes(status);
-          }).map((record) => Object.assign({ source }, record));
-          if (active.length) matchedKeys.push(key);
-          result.push(...active);
+            if (isCart || !finishedStatuses.includes(status)) {
+              result.push(Object.assign({ source: source }, record));
+            }
+          });
         } catch (error) {
           console.warn('[SmartGuide] Key user tidak dapat dibaca:', key, error);
         }
@@ -102,221 +145,104 @@
     },
 
     /**
-     * Cek apakah ada data di localStorage
+     * Deteksi SATU tahap aktif pesanan (paling lanjut yang belum selesai).
+     * Mengembalikan { stage, tab, orderId } atau null.
      */
-    hasData: function(key) {
-      if (!key) return false;
-      try {
-        const data = localStorage.getItem(key);
-        if (!data) return false;
-
-        const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) {
-          return parsed.length > 0;
-        }
-        if (typeof parsed === 'object') {
-          return Object.keys(parsed).length > 0;
-        }
-        return !!parsed;
-      } catch (e) {
-        return false;
-      }
-    },
-
-    /**
-     * Cek apakah lastOrder sudah ada di orders (riwayat pesanan).
-     * Jika sudah ada → pesanan sudah tuntas masuk riwayat.
-     */
-    isLastOrderInHistory: function(userOrdersKey, userLastOrderKey) {
-      try {
-        const lastOrderKey = userLastOrderKey || (typeof getUserStorageKey === 'function' ? getUserStorageKey('lastOrder') : null);
-        const ordersKey = userOrdersKey || (typeof getUserStorageKey === 'function' ? getUserStorageKey('orders') : null);
-        if (!lastOrderKey || !ordersKey) return false;
-
-        const lastOrderRaw = localStorage.getItem(lastOrderKey);
-        const ordersRaw = localStorage.getItem(ordersKey);
-        if (!lastOrderRaw || !ordersRaw) return false;
-
-        const lastOrder = JSON.parse(lastOrderRaw);
-        const orders = JSON.parse(ordersRaw);
-        if (!Array.isArray(orders) || orders.length === 0) return false;
-
-        const refId = (lastOrder && (lastOrder.id || lastOrder.orderId || lastOrder.timestamp || lastOrder.orderDate)) || null;
-        if (!refId) return false;
-
-        return orders.some(function(o) {
-          if (!o) return false;
-          return (o.id || o.orderId || o.timestamp || o.orderDate) === refId;
-        });
-      } catch (e) {
-        return false;
-      }
-    },
-
-    /**
-     * Bangun antrean FIFO dari tiga tahap transaksi.
-     * Pesanan yang lebih lama selalu menjadi target toast terlebih dahulu.
-     */
-    detectActiveProgress: function() {
-      const activeOrders = this.getActiveOrders();
+    detectActiveStage: function () {
       const userKeys = this.getUserKeys() || {};
       const hasData = (key) => this.hasData(key);
-      const candidates = [];
-      const stateExists = {
-        'keranjang.html': hasData(userKeys.cart),
-        'checkout.html': hasData(userKeys.checkoutItems),
-        'success.html': hasData(userKeys.pesananAktif)
-      };
-
-      const readTimestamp = function(key, fields) {
-        if (!key) return null;
-        try {
-          const raw = localStorage.getItem(key);
-          const parsed = JSON.parse(raw || 'null');
-          const values = Array.isArray(parsed) ? parsed : [parsed];
-          for (const value of values) {
-            if (!value || typeof value !== 'object') continue;
-            for (const field of fields) {
-              const time = Date.parse(value[field] || '');
-              if (Number.isFinite(time)) return time;
-            }
-          }
-        } catch (error) {}
-        return null;
-      };
-
-      const addCandidate = function(page, exists, timestamp, fallbackRank) {
-        if (exists) candidates.push({ page: page, timestamp: timestamp, fallbackRank: fallbackRank });
-      };
-
-      // success adalah pesanan yang sudah dibuat tetapi belum dipindahkan ke
-      // riwayat. Checkout berada sebelum cart pada fallback FIFO.
-      addCandidate('success.html', stateExists['success.html'],
-        readTimestamp(userKeys.pesananAktif, ['createdAt', 'timestamp', 'orderDate']), 0);
-      addCandidate('checkout.html', stateExists['checkout.html'],
-        readTimestamp(userKeys.checkoutForm, ['timestamp', 'createdAt', 'updatedAt']), 1);
-      addCandidate('keranjang.html', stateExists['keranjang.html'],
-        readTimestamp(userKeys.pesananBaru, ['updatedAt', 'createdAt', 'timestamp']), 2);
-
-      // Untuk key legacy/universal, tambahkan kandidat hanya bila state user
-      // belum menemukannya. Ini mencegah satu cart dihitung berkali-kali.
-      if (!stateExists['keranjang.html'] || !stateExists['checkout.html'] || !stateExists['success.html']) {
-        try {
-          for (let index = 0; index < localStorage.length; index += 1) {
-            const key = String(localStorage.key(index) || '').toLowerCase();
-            if (!key) continue;
-            const isCart = ['cart', 'dikycart', 'keranjang'].includes(key) || key.startsWith('dikycart_') || key.startsWith('cart_') || key.startsWith('keranjang_');
-            if (isCart && !stateExists['keranjang.html'] && hasData(key)) {
-              addCandidate('keranjang.html', true, readTimestamp(key, ['updatedAt', 'createdAt', 'timestamp']), 2);
-              stateExists['keranjang.html'] = true;
-            }
-            if (key.startsWith('dikycheckoutitems_') && !stateExists['checkout.html'] && hasData(key)) {
-              addCandidate('checkout.html', true, readTimestamp(key, ['updatedAt', 'createdAt', 'timestamp']), 1);
-              stateExists['checkout.html'] = true;
-            }
-            if ((key === 'pesananaktif' || key.startsWith('pesananaktif_')) && !stateExists['success.html'] && hasData(key)) {
-              addCandidate('success.html', true, readTimestamp(key, ['createdAt', 'timestamp', 'orderDate']), 0);
-              stateExists['success.html'] = true;
-            }
-          }
-        } catch (error) {
-          console.warn('[SmartGuide Debug] Scan state transaksi gagal.', error);
-        }
-      }
-
-      const activeOrderProgress = activeOrders.filter((order) => order.source === 'orders' || order.source === 'orderHistory' || order.source === 'pesananAktif' || order.source === 'pesananBaru');
-      const activeTabTarget = activeOrderProgress.some((order) => {
-        const status = String(order.status || 'menunggu').trim().toLowerCase();
-        return status === 'dikirim' || status === 'siap_diambil';
-      }) ? 'dikirim' : 'dikemas';
-      if (activeOrderProgress.length) {
-        candidates.push({ page: 'orders.html', tab: activeTabTarget, timestamp: null, fallbackRank: -1 });
-      }
-
-      // Pesanan yang sudah dibuat menjadi tujuan utama pemantauan. State
-      // keranjang/checkout/success tetap dipertimbangkan jika belum ada order aktif.
-      candidates.sort(function(a, b) {
-        if (a.timestamp !== null && b.timestamp !== null && a.timestamp !== b.timestamp) {
-          return a.timestamp - b.timestamp;
-        }
-        return a.fallbackRank - b.fallbackRank;
-      });
-
-      const target = candidates[0] || null;
-      this.state.activeOrderProgress = activeOrderProgress;
-      this.state.detectedPage = target ? target.page : null;
-      this.state.detectedTab = target && target.tab ? target.tab : null;
-      this.state.lastPosition = this.state.detectedPage || null;
-      this.state.queue = candidates;
-      this.state.hasPendingTransaction = Boolean(target);
-      console.log('[SmartGuide Debug] detectActiveProgress FIFO', {
-        activeOrders: activeOrders.length,
-        candidates: candidates,
-        target: target
-      });
-    },
-
-    /**
-     * Tampilkan toast di setiap halaman selama terdapat pesanan aktif.
-     * Hanya halaman yang memproses atau menampilkan pesanan tersebut yang
-     * dikecualikan agar toast tidak mengarah kembali ke halaman yang sama.
-     */
-    shouldShowToast: function() {
-      const currentPage = this.getCurrentPageName();
       const activeOrders = this.getActiveOrders();
-      const targetPage = this.state.detectedPage;
-      let isCurrentOrderTab = false;
-      if (currentPage === 'orders.html' && this.state.activeOrderProgress && this.state.activeOrderProgress.length) {
-        const activeTabButton = document.querySelector('.order-tab.active');
-        const activeTab = activeTabButton ? activeTabButton.dataset.tab : null;
-        isCurrentOrderTab = this.state.activeOrderProgress.some((order) => {
-          const status = String(order.status || 'menunggu').trim().toLowerCase();
-          const tabStatus = status === 'menunggu' || status === 'diproses' ? 'dikemas' : status;
-          return tabStatus === activeTab && ['dikemas', 'dikirim', 'siap_diambil'].includes(tabStatus);
-        });
-      }
-      const shouldShow = Boolean(targetPage) && activeOrders.length > 0 && !isCurrentOrderTab && (currentPage !== targetPage || currentPage === 'orders.html');
-      console.log('[SmartGuide Debug] shouldShowToast', {
-        currentPage: currentPage,
-        activeOrders: activeOrders.length,
-        targetPage: targetPage,
-        shouldShow: shouldShow
+
+      // 1) Tahap orders (Dikemas / Dikirim / Silahkan Untuk Diambil):
+      //    pesanan nyata yang sudah masuk riwayat/orders.
+      const orderRecords = activeOrders.filter(function (order) {
+        if (order.source !== 'orders' && order.source !== 'orderHistory') return false;
+        const status = String(order.status || '').trim().toLowerCase();
+        // semua status non-selesai di sini termasuk tahap orders.
+        return !['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan', 'completed', 'cancelled'].includes(status);
       });
-      return shouldShow;
+
+      if (orderRecords.length) {
+        let best = orderRecords[0];
+        for (let i = 1; i < orderRecords.length; i += 1) {
+          const candidate = orderRecords[i];
+          const candidateRank = rankOf(tabForStatus(candidate.status) === 'dikemas' ? 'dikemas' : 'dikirim');
+          const bestRank = rankOf(tabForStatus(best.status) === 'dikemas' ? 'dikemas' : 'dikirim');
+          const candidateTime = Date.parse(candidate.createdAt || candidate.timestamp || candidate.orderDate || '');
+          const bestTime = Date.parse(best.createdAt || best.timestamp || best.orderDate || '');
+          if (candidateRank > bestRank || (candidateRank === bestRank && candidateTime > bestTime)) {
+            best = candidate;
+          }
+        }
+        const tab = tabForStatus(best.status);
+        return { stage: tab, tab: tab, orderId: best.id || best.orderId || null };
+      }
+
+      // 2) Tahap success: pesananAktif / lastOrder ada (pesanan dibuat, belum
+      //    dipindahkan ke riwayat oleh tombol "Lihat Riwayat Pesanan").
+      if (hasData(userKeys.pesananAktif) || hasData(userKeys.lastOrder)) {
+        return { stage: 'success', tab: null, orderId: null };
+      }
+
+      // 3) Tahap checkout: checkoutItems ada.
+      if (hasData(userKeys.checkoutItems)) {
+        return { stage: 'checkout', tab: null, orderId: null };
+      }
+
+      // 4) Tahap keranjang: cart ada.
+      if (hasData(userKeys.cart)) {
+        return { stage: 'keranjang', tab: null, orderId: null };
+      }
+
+      // 5) Tidak ada tahap aktif (mis. semua pesanan sudah Selesai) -> null.
+      return null;
     },
 
     /**
-     * Inisialisasi Smart Guide
+     * Tab orders.html yang sedang aktif di DOM, atau null bila bukan orders.html.
      */
-    init: function() {
-      console.log('[SmartGuide Debug] init mulai', {
-        readyState: document.readyState,
-        url: window.location.href,
-        bodyAvailable: Boolean(document.body)
-      });
-      // Single-toast invariant: hapus semua instance lama, termasuk instance
-      // yang mungkin dibuat oleh script lama sebelum komponen ini berjalan.
-      document.querySelectorAll('.smart-guide-toast').forEach((toast) => toast.remove());
+    getActiveOrdersTab: function () {
+      if (this.getCurrentPageName() !== 'orders.html') return null;
+      const activeButton = document.querySelector('.order-tab.active');
+      return activeButton ? String(activeButton.dataset.tab || '').toLowerCase() : null;
+    },
+
+    /**
+     * Tentukan apakah pop-up harus tampil di halaman ini.
+     */
+    shouldShowToast: function () {
+      const stageInfo = this.state.stage ? this.state : null;
+      if (!stageInfo || !stageInfo.stage) return false;
+
+      const currentPage = this.getCurrentPageName();
+      const targetPage = STAGE_PAGE[stageInfo.stage];
+
+      // Tahap orders: target = orders.html dengan tab tertentu.
+      if (stageInfo.stage === 'dikemas' || stageInfo.stage === 'dikirim') {
+        if (currentPage !== 'orders.html') return true; // di halaman lain -> tampil
+        // Sedang di orders.html: sembunyi hanya jika tab aktif = tab tahap.
+        const activeTab = this.getActiveOrdersTab();
+        return activeTab !== stageInfo.tab;
+      }
+
+      // Tahap keranjang/checkout/success: sembunyi di halaman tahap itu sendiri.
+      return currentPage !== targetPage;
+    },
+
+    init: function () {
+      // Single-toast invariant: hapus semua instance lama.
+      document.querySelectorAll('.smart-guide-toast').forEach(function (toast) { toast.remove(); });
       this.elements.toast = null;
       this.elements.button = null;
       this.elements.closeBtn = null;
 
-      this.detectActiveProgress();
+      const detected = this.detectActiveStage();
+      this.state.stage = detected ? detected.stage : null;
+      this.state.tab = detected ? detected.tab : null;
+      this.state.orderId = detected ? detected.orderId : null;
+      this.state.targetPage = detected ? STAGE_PAGE[detected.stage] : null;
 
-      // Evaluasi keputusan sebelum injeksi. Jika aktif dan halaman bukan
-      // pengecualian, elemen wajib dibuat ke document.body.
-      const shouldShow = this.shouldShowToast();
-      console.log('[SmartGuide Debug] init keputusan', {
-        detectedPage: this.state.detectedPage,
-        shouldShow: shouldShow,
-        targetPage: this.state.detectedPage
-      });
-      if (!shouldShow) {
-        console.warn('[SmartGuide Debug] Toast tidak dibuat.', {
-          reason: this.getActiveOrders().length === 0 ? 'tidak ada data pesanan' : (!this.state.detectedPage ? 'hanya ada riwayat orders, tanpa state transaksi' : 'sedang berada di halaman sumber pesanan'),
-          currentPage: this.getCurrentPageName(),
-          orderKey: typeof getUserStorageKey === 'function' ? getUserStorageKey('orders') : null
-        });
+      if (!this.shouldShowToast()) {
         this.hideDirectly();
         return;
       }
@@ -327,195 +253,157 @@
       this.state.initialized = true;
     },
 
-    /**
-     * Buat elemen toast
-     */
-    createToastElement: function() {
+    createToastElement: function () {
       const toast = document.createElement('div');
       toast.className = 'smart-guide-toast';
       toast.innerHTML = this.getToastHTML();
-
       document.body.appendChild(toast);
       toast.style.display = 'block';
       toast.classList.remove('hidden');
-      console.log('[SmartGuide Debug] createToastElement berhasil', {
-        inBody: document.body.contains(toast),
-        display: window.getComputedStyle(toast).display,
-        visibility: window.getComputedStyle(toast).visibility,
-        zIndex: window.getComputedStyle(toast).zIndex,
-        className: toast.className
-      });
 
       this.elements.toast = toast;
       this.elements.button = toast.querySelector('.smart-guide-button');
       this.elements.closeBtn = toast.querySelector('.smart-guide-close');
     },
 
-    /**
-     * Dapatkan HTML untuk toast berdasarkan halaman terdeteksi
-     */
-    getToastHTML: function() {
-      const detectedPage = this.state.detectedPage;
-      let title = '';
-      let message = '';
+    getToastHTML: function () {
+      const stage = this.state.stage;
+      let title = '📋 Pantau Pesanan Kamu Disini';
+      let message = 'Temukan pesanan aktif kamu dan lanjutkan proses belanja.';
 
-      switch(detectedPage) {
-        case 'keranjang.html':
+      switch (stage) {
+        case 'keranjang':
           title = '🛒 Pesanan Kamu Menunggu';
           message = 'Kamu memiliki item di keranjang belanja. Lanjutkan pembayaran sekarang.';
           break;
-        case 'checkout.html':
+        case 'checkout':
           title = '💳 Checkout Belum Selesai';
           message = 'Proses checkout pesanan kamu tertunda. Selesaikan pesanan sekarang.';
           break;
-        case 'success.html':
+        case 'success':
           title = '✅ Pesanan Berhasil Dibuat';
           message = 'Pesanan kamu telah dicatat. Lihat detail dan konfirmasi riwayat pesanan.';
           break;
+        case 'dikemas':
+          title = '📦 Pesanan Sedang Dikemas';
+          message = 'Pesanan kamu sedang diproses. Pantau statusnya di tab Dikemas.';
+          break;
+        case 'dikirim':
+          title = '🚚 Pesanan Dalam Pengiriman';
+          message = 'Pesanan kamu sedang dikirim/siap diambil. Pantau statusnya sekarang.';
+          break;
         default:
-          title = '📋 Pantau Pesanan Kamu Disini';
-          message = 'Temukan pesanan aktif kamu dan lanjutkan proses belanja.';
+          break;
       }
 
-      return `
-        <button class="smart-guide-close" aria-label="Tutup">×</button>
-        <div class="smart-guide-content">
-          <div class="smart-guide-header">
-            <span class="smart-guide-icon">💡</span>
-            <h3 class="smart-guide-title">${title}</h3>
-          </div>
-          <p class="smart-guide-message">${message}</p>
-          <button class="smart-guide-button">Pantau Pesanan Kamu Disini</button>
-        </div>
-      `;
+      return ''
+        + '<button class="smart-guide-close" aria-label="Tutup">×</button>'
+        + '<div class="smart-guide-content">'
+        + '  <div class="smart-guide-header">'
+        + '    <span class="smart-guide-icon">💡</span>'
+        + '    <h3 class="smart-guide-title">' + title + '</h3>'
+        + '  </div>'
+        + '  <p class="smart-guide-message">' + message + '</p>'
+        + '  <button class="smart-guide-button">Pantau Pesanan Kamu Disini</button>'
+        + '</div>';
     },
 
-    /**
-     * Tampilkan toast
-     */
-    show: function() {
+    show: function () {
       if (this.elements.toast) {
         this.elements.toast.style.display = 'block';
         this.elements.toast.classList.remove('hidden');
       }
     },
 
-    /**
-     * Sembunyikan toast dengan animasi
-     */
-    hide: function() {
+    hide: function () {
       if (this.elements.toast) {
         this.elements.toast.classList.add('hidden');
-        setTimeout(() => {
-          if (this.elements.toast && this.elements.toast.parentNode) {
-            this.elements.toast.style.display = 'none';
-            this.elements.toast.remove();
+        const self = this;
+        setTimeout(function () {
+          if (self.elements.toast && self.elements.toast.parentNode) {
+            self.elements.toast.style.display = 'none';
+            self.elements.toast.remove();
           }
         }, 300);
       }
     },
 
-    /**
-     * Sembunyikan langsung tanpa animasi
-     */
-    hideDirectly: function() {
+    hideDirectly: function () {
       if (this.elements.toast) {
         this.elements.toast.style.display = 'none';
-        if (this.elements.toast.parentNode) {
-          this.elements.toast.remove();
-        }
+        if (this.elements.toast.parentNode) this.elements.toast.remove();
       }
     },
 
     /**
-     * Navigasi ke halaman progres aktif dengan otorisasi sah
+     * Navigasi ke halaman tahap aktif dengan otorisasi sah.
      */
-    navigateToActiveProgress: function() {
-      const detectedPage = this.state.detectedPage;
+    navigateToActiveProgress: function () {
+      const stage = this.state.stage;
+      const targetPage = this.state.targetPage;
+      if (!stage || !targetPage) return;
 
-      if (detectedPage) {
-        let sourceToken = 'valid_action';
-        if (detectedPage === 'orders.html') {
-          sourceToken = 'smart_guide_orders';
-          try { sessionStorage.setItem('dikySmartGuideOrderTab', this.state.detectedTab || 'dikemas'); } catch (error) { }
-        }
-        else if (detectedPage === 'keranjang.html') sourceToken = 'smart_guide_keranjang';
-        else if (detectedPage === 'checkout.html') sourceToken = 'smart_guide_checkout';
-        else if (detectedPage === 'success.html') sourceToken = 'smart_guide_success';
+      let sourceToken = 'valid_action';
+      if (stage === 'dikemas' || stage === 'dikirim') {
+        sourceToken = 'smart_guide_orders';
+        try { sessionStorage.setItem('dikySmartGuideOrderTab', this.state.tab || 'dikemas'); } catch (e) { }
+      } else if (stage === 'keranjang') sourceToken = 'smart_guide_keranjang';
+      else if (stage === 'checkout') sourceToken = 'smart_guide_checkout';
+      else if (stage === 'success') sourceToken = 'smart_guide_success';
 
-        // Berikan izin akses navigasi sah agar tidak diblokir NavigationGuard
-        if (window.NavigationGuard && typeof window.NavigationGuard.grantAccess === 'function') {
-          window.NavigationGuard.grantAccess(detectedPage, sourceToken);
-        }
-
-        this.hide();
-        setTimeout(() => {
-          window.location.href = detectedPage;
-        }, 200);
+      if (window.NavigationGuard && typeof window.NavigationGuard.grantAccess === 'function') {
+        window.NavigationGuard.grantAccess(targetPage, sourceToken);
       }
+
+      this.hide();
+      const self = this;
+      setTimeout(function () {
+        window.location.href = targetPage;
+      }, 200);
     },
 
-    /**
-     * Bind event listeners untuk tombol toast
-     */
-    bindEvents: function() {
+    bindEvents: function () {
+      const self = this;
       if (this.elements.button) {
-        this.elements.button.addEventListener('click', () => {
-          this.navigateToActiveProgress();
-        });
+        this.elements.button.addEventListener('click', function () { self.navigateToActiveProgress(); });
       }
-
       if (this.elements.closeBtn) {
-        this.elements.closeBtn.addEventListener('click', () => {
-          this.hide();
-        });
+        this.elements.closeBtn.addEventListener('click', function () { self.hide(); });
       }
     }
   };
 
-  // Evaluasi setelah DOM siap agar tab pesanan aktif sudah tersedia saat aturan
-  // pengecualian tab Dikemas/Dikirim/Selesai diperiksa.
   function initializeSmartGuide() {
     SmartGuide.init();
   }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeSmartGuide, { once: true });
   } else {
     initializeSmartGuide();
   }
-  window.addEventListener('pageshow', function() {
+
+  window.addEventListener('pageshow', function () {
     if (document.visibilityState !== 'hidden') SmartGuide.init();
   });
 
-  window.addEventListener('popstate', function() {
+  window.addEventListener('popstate', function () {
     SmartGuide.init();
   });
 
-  // Perbarui toast bila cart/order berubah dari tab atau halaman lain.
-  window.addEventListener('storage', function(event) {
+  // Re-evaluasi toast bila data pesanan berubah dari tab/halaman lain.
+  window.addEventListener('storage', function (event) {
     const key = String(event.key || '').toLowerCase();
-    if (key.startsWith('dikyorders_') || key.startsWith('dikycart_') ||
-        key.startsWith('pesananaktif') || key.startsWith('pesananbaru') ||
-        key.startsWith('dikycheckoutitems_') || ['cart', 'dikycart', 'keranjang'].includes(key)) {
+    if (
+      key.startsWith('dikyorders_') || key.startsWith('riwayatpesanan_') ||
+      key.startsWith('dikycart_') || key.startsWith('pesananaktif') ||
+      key.startsWith('pesananbaru') || key.startsWith('dikycheckoutitems_') ||
+      key.startsWith('dikylastorder_') || key.startsWith('dikylastposition_') ||
+      ['cart', 'dikycart', 'keranjang'].includes(key)
+    ) {
       SmartGuide.init();
     }
   });
 
-  function initializeSmartGuideWhenBodyReady() {
-    if (document.body) {
-      SmartGuide.init();
-    } else {
-      window.setTimeout(initializeSmartGuideWhenBodyReady, 0);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeSmartGuideWhenBodyReady, { once: true });
-  } else {
-    initializeSmartGuideWhenBodyReady();
-  }
-
-  // Export ke global scope
   window.SmartGuide = SmartGuide;
-
 })(window);
