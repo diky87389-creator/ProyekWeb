@@ -1,19 +1,8 @@
-const activeUserKey = 'dikyActiveUser';
 const userMenu = document.getElementById('user-menu');
 
-function getActiveUser() {
-  const raw = localStorage.getItem(activeUserKey);
-  try {
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    console.warn('Data pengguna aktif tidak valid.', error);
-    localStorage.removeItem(activeUserKey);
-    return null;
-  }
-}
-
 function requireLogin() {
-  if (!getActiveUser()) {
+  if (!isValidSession()) {
+    console.warn('requireLogin: Sesi tidak valid, redirect ke login');
     window.location.href = 'login.html';
     return false;
   }
@@ -27,7 +16,7 @@ function clearElement(element) {
 }
 
 function renderUserMenu() {
-  const user = getActiveUser();
+  const user = window.getActiveUser();
   clearElement(userMenu);
 
   if (!user) {

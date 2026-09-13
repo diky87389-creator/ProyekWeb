@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; img-src 'self' data: blob: https://unpkg.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org; font-src 'self' data:; connect-src 'self' https://accounts.google.com https://unpkg.com https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.tile.openstreetmap.org; frame-src https://accounts.google.com; upgrade-insecure-requests">
   <title>Daftar - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="daftar.css" />
 </head>
 <body>
@@ -21,11 +23,42 @@
         <label for="full-name">Nama Lengkap</label>
         <input id="full-name" name="fullName" type="text" placeholder="Masukkan nama lengkap" required />
 
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" placeholder="Username otomatis" readonly required aria-readonly="true" />
+
+        <label for="fotoProfil">Foto Profil</label>
+        <input id="fotoProfil" name="fotoProfil" type="file" accept="image/*" />
+        <img id="fotoProfilPreview" alt="Pratinjau foto profil" hidden />
+
         <label for="phone-number">Nomor Telepon</label>
         <input id="phone-number" name="phoneNumber" type="tel" placeholder="Contoh: 081234567890" required />
 
         <label for="email-address">Email</label>
         <input id="email-address" name="emailAddress" type="email" placeholder="contoh@email.com" required />
+
+        <div class="location-box">
+          <label for="address">Alamat</label>
+          <div class="location-input-row">
+            <textarea id="address" name="address" rows="3" placeholder="Alamat otomatis akan terisi setelah lokasi terdeteksi" readonly required aria-readonly="true"></textarea>
+            <button type="button" id="detect-location-btn" class="button button-secondary">Gunakan Lokasi Terkini Saya</button>
+          </div>
+          <div id="map" class="leaflet-map" aria-label="Peta lokasi pengguna"></div>
+
+          <div class="manual-address-box" id="detail-address-box">
+            <label for="address-detail">Detail Alamat Lengkap</label>
+            <small class="address-warning">Mohon isi: Nama Jalan / Gang / Blok, Nomor Rumah, RT Dan RW, Patokan Khusus (opsional), Kelurahan, Kecamatan, Kota, Dan Provinsi</small>
+            <div class="address-detail-row">
+              <textarea id="address-detail" name="addressDetail" rows="3" placeholder="Contoh: Jl. Mawar 08 Nomor Rumah. 12, RT 03 RW 02, Dekat Masjid Al-Hikmah, Kel. Cikokol, Kec. Tangerang, Kota Tangerang, Provinsi Banten"></textarea>
+              <div class="address-action-buttons">
+                <button type="button" id="save-address-detail-btn" class="button button-success">Simpan</button>
+                <button type="button" id="edit-address-detail-btn" class="button button-info">Edit</button>
+              </div>
+            </div>
+          </div>
+
+          <input id="latitude" name="latitude" type="hidden" />
+          <input id="longitude" name="longitude" type="hidden" />
+        </div>
 
         <label for="password">Kata Sandi</label>
         <input id="password" name="password" type="password" placeholder="Buat kata sandi minimal 6 karakter" required minlength="6" />
@@ -42,6 +75,8 @@
     <div class="toast" id="register-toast"></div>
   </main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="storage-helper.js"></script>
   <script src="daftar.js"></script>
 </body>
 </html>

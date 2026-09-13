@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+  <script src="admin-gate.js"></script>
+  <title>Kelola Hutang - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="admin-hutang.css">
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="bar-inner"><a class="brand" href="admin-dashboard.html">Warung Sayur Diky <span>Admin</span></a><a
+        class="button button-light" href="admin-dashboard.html">← Dashboard</a></div>
+  </header>
+  <main class="container">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">Keuangan toko</p>
+        <h1>Kelola Hutang</h1>
+        <p class="muted">Pantau dan validasi kasbon seluruh pelanggan.</p>
+      </div><button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button>
+    </section>
+    <section class="stats-grid" aria-label="Ringkasan hutang">
+      <article class="stat-card"><span>📒</span>
+        <div>
+          <p>Transaksi Belum Lunas</p><strong id="unpaid-count">0</strong>
+        </div>
+      </article>
+      <article class="stat-card"><span>👥</span>
+        <div>
+          <p>Pelanggan Berhutang</p><strong id="customer-count">0</strong>
+        </div>
+      </article>
+      <article class="stat-card"><span>💰</span>
+        <div>
+          <p>Total Belum Lunas</p><strong id="unpaid-total">Rp0</strong>
+        </div>
+      </article>
+    </section>
+    <section class="toolbar"><label for="search-debts">Cari pelanggan, ID, atau order<input id="search-debts"
+          type="search" placeholder="Masukkan kata kunci"></label><label for="status-filter">Status<select
+          id="status-filter">
+          <option value="all">Semua status</option>
+          <option value="belum">Belum Lunas</option>
+          <option value="lunas">Lunas</option>
+        </select></label></section>
+    <p id="debts-summary" class="summary" aria-live="polite"></p>
+    <section id="debts-list" class="debts-list" aria-live="polite"></section>
+  </main>
+  <dialog id="detail-dialog">
+    <div class="dialog-head">
+      <h2>Detail Kasbon</h2><button id="close-dialog" class="close" type="button" aria-label="Tutup">×</button>
+    </div>
+    <div id="debt-detail"></div>
+  </dialog>
+  <script src="admin-hutang.js" defer></script>
+</body>
+
+</html>

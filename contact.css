@@ -297,3 +297,14 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Responsive safeguards */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
+img, svg, video { max-width: 100%; height: auto; }
+button, .button, a.button { min-height: 44px; }
+@media (max-width: 680px) {
+  .container { width: min(100% - 1.25rem, 38rem); }
+  .contact-grid, .form-grid { grid-template-columns: 1fr !important; }
+  .button, button { width: 100%; }
+}

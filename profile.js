@@ -1,10 +1,11 @@
-const activeUserKey = 'dikyActiveUser';
 const userNameField = document.getElementById('user-name');
 const userProviderField = document.getElementById('user-provider');
 const userAvatarImage = document.getElementById('user-avatar-image');
 const userAvatarInitials = document.getElementById('user-avatar-initials');
 const userContactField = document.getElementById('user-contact');
 const userEmailField = document.getElementById('user-email');
+const userUsernameField = document.getElementById('user-username');
+const userAddressField = document.getElementById('user-address');
 const userLoginTimeField = document.getElementById('user-login-time');
 const userIdField = document.getElementById('user-id');
 const historyLoginTimeField = document.getElementById('history-login-time');
@@ -15,10 +16,28 @@ function normalizeActiveUser(user) {
   const { whatsappNumber, ...rest } = user;
   return {
     ...rest,
+    userId: user.userId || user.id || null,
+    username: user.username || null,
     phoneNumber: user.phoneNumber || whatsappNumber || null,
+    profileImage: user.profileImage || user.avatarUrl || null,
     avatarUrl: user.avatarUrl || null,
-    authProvider: user.authProvider || 'email'
+    authProvider: user.authProvider || 'email',
+    address: user.address || null
   };
+}
+
+function getRegisteredProfile(activeUser) {
+  if (!activeUser) return null;
+  try {
+    const users = JSON.parse(localStorage.getItem('dikyRegisteredUsers') || '[]');
+    if (!Array.isArray(users)) return null;
+    return users.find((user) => {
+      if (!user) return false;
+      return String(user.id || '') === String(activeUser.id || '');
+    }) || null;
+  } catch (error) {
+    return null;
+  }
 }
 
 function buildInitials(user) {
@@ -33,7 +52,8 @@ function buildInitials(user) {
 function renderAvatar(user) {
   userAvatarInitials.textContent = buildInitials(user);
 
-  if (!user.avatarUrl) {
+  const profileImage = user.profileImage || user.avatarUrl;
+  if (!profileImage) {
     userAvatarImage.hidden = true;
     userAvatarImage.removeAttribute('src');
     userAvatarInitials.hidden = false;
@@ -49,30 +69,8 @@ function renderAvatar(user) {
     userAvatarInitials.hidden = true;
   };
   userAvatarImage.referrerPolicy = 'no-referrer';
-  userAvatarImage.src = user.avatarUrl;
+  userAvatarImage.src = profileImage;
   userAvatarImage.alt = `Foto profil ${user.fullName || 'pengguna'}`;
-}
-
-function saveActiveUser(user) {
-  const { whatsappNumber, ...rest } = user;
-  localStorage.setItem(activeUserKey, JSON.stringify(rest));
-}
-
-function getActiveUser() {
-  const raw = localStorage.getItem(activeUserKey);
-  try {
-    const user = raw ? JSON.parse(raw) : null;
-    if (!user) return null;
-    const normalizedUser = normalizeActiveUser(user);
-    if (JSON.stringify(normalizedUser) !== JSON.stringify(user)) {
-      saveActiveUser(normalizedUser);
-    }
-    return normalizedUser;
-  } catch (error) {
-    console.warn('Data pengguna aktif tidak valid.', error);
-    localStorage.removeItem(activeUserKey);
-    return null;
-  }
 }
 
 function formatDateTime(isoString) {
@@ -91,8 +89,8 @@ function formatDateTime(isoString) {
 }
 
 function requireLogin() {
-  const user = getActiveUser();
-  if (!user) {
+  if (!isValidSession()) {
+    console.warn('requireLogin: Sesi tidak valid, redirect ke login');
     window.location.href = 'login.html';
     return false;
   }
@@ -100,45 +98,135 @@ function requireLogin() {
 }
 
 function renderProfile() {
-  const user = getActiveUser();
-  if (!user) return;
+  const sessionUser = window.getActiveUser();
+  if (!sessionUser) return;
+  const registeredProfile = getRegisteredProfile(sessionUser);
+  const user = normalizeActiveUser(Object.assign({}, registeredProfile || {}, sessionUser));
 
   userNameField.textContent = user.fullName || 'Nama tidak tersedia';
   userProviderField.textContent = user.authProvider === 'google' ? 'Akun Google' : 'Akun Email';
   renderAvatar(user);
   userContactField.textContent = user.phoneNumber || user.contactInfo || '-';
   userEmailField.textContent = user.emailAddress || (user.contactInfo && user.contactInfo.includes('@') ? user.contactInfo : '-') || '-';
+  if (userUsernameField) userUsernameField.textContent = user.username || '-';
+  if (userAddressField) userAddressField.textContent = user.address || '-';
   userIdField.textContent = user.id || '-';
   userLoginTimeField.textContent = formatDateTime(user.loggedAt);
   historyLoginTimeField.textContent = formatDateTime(user.loggedAt);
 }
 
+function forceCleanReRender() {
+  // Clear and re-render profile data for current user
+  renderProfile();
+
+  console.log('Clean re-render completed for profile page');
+}
+
 function logoutQuick() {
-  // Hanya menghapus data user aktif
+  // Logout Cepat: Hanya menghapus kunci dikyActiveUser
+  // Data keranjang, hutang, dan order TETAP utuh di localStorage
+
+  console.log('Logout Cepat: Menghapus session user aktif saja');
   localStorage.removeItem('dikyActiveUser');
   window.location.href = 'login.html';
 }
 
+function readStoredRecords(key) {
+  if (!key) return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+    if (Array.isArray(parsed)) return parsed.filter((record) => record && typeof record === 'object');
+    return parsed && typeof parsed === 'object' ? [parsed] : [];
+  } catch (error) {
+    console.warn(`Data tersimpan pada ${key} tidak valid.`, error);
+    return [];
+  }
+}
+
+function hasActiveOrdersBeforeLogout() {
+  const finishedStatuses = new Set(['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan', 'completed', 'cancelled']);
+  const keys = [
+    getUserStorageKey('pesananAktif'),
+    getUserStorageKey('pesananBaru'),
+    getUserStorageKey('lastOrder'),
+    getUserStorageKey('riwayatPesanan'),
+    getUserStorageKey('orders')
+  ].filter(Boolean);
+
+  return keys.some((key) => readStoredRecords(key).some((order) => {
+    const status = String(order.status || 'menunggu').trim().toLowerCase();
+    return !finishedStatuses.has(status);
+  }));
+}
+
 function logoutClean() {
-  const confirmed = window.confirm('Logout Bersih Total akan menghapus SEMUA data lokal Warung Sayur Diky dari perangkat ini. Lanjutkan?');
+  if (hasActiveOrdersBeforeLogout()) {
+    window.alert('Logout Bersih Total ditolak karena masih ada pesanan yang belum selesai. Selesaikan pesanan pada tab Dikemas, Dikirim, atau Silahkan Untuk Diambil sampai masuk ke tab Selesai di halaman Pesanan terlebih dahulu.');
+    return;
+  }
+
+  const confirmed = window.confirm('Logout Bersih Total akan menghapus data pribadi dan alamat tersimpan pada sesi user, tetapi tidak menghapus data operasional admin atau katalog produk. Lanjutkan?');
   if (!confirmed) return;
-  
-  // Hapus semua data spesifik Warung Sayur Diky
-  const keysToRemove = [
-    'dikyActiveUser',
-    'dikyRegisteredUsers',
-    'dikyCart',
-    'dikyOrders',
-    'dikyCheckoutSummary'
-  ];
-  
-  keysToRemove.forEach(key => localStorage.removeItem(key));
-  window.location.href = 'login.html';
+
+  const user = typeof window.getActiveUser === 'function' ? window.getActiveUser() : null;
+  if (!user || !user.id) {
+    window.location.href = 'login.html';
+    return;
+  }
+
+  const userId = String(user.id);
+  console.log('Logout Bersih Total: membersihkan data pribadi user', userId);
+
+  // Key orders dan hutang sengaja tidak dihapus karena merupakan arsip admin.
+  const privateKeys = [
+    getUserStorageKey('cart'),
+    getUserStorageKey('checkoutItems'),
+    getUserStorageKey('checkoutSummary'),
+    getUserStorageKey('checkoutForm'),
+    getUserStorageKey('lastOrder'),
+    getUserStorageKey('pesananAktif'),
+    getUserStorageKey('pesananBaru'),
+    getUserStorageKey('riwayatPesanan'),
+    getUserStorageKey('lastPosition'),
+    'dikySessionActivity_' + userId
+  ].filter(Boolean);
+
+  privateKeys.forEach((key) => {
+    try {
+      console.log(`Logout Bersih Total: menghapus ${key}`);
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`Gagal menghapus ${key}`, error);
+    }
+  });
+
+  // Jangan mengubah dikyRegisteredUsers, dikyOrders_*, dikyHutang_*, atau katalog.
+  // Data tersebut dibaca panel admin sebagai arsip operasional dan tetap harus aman.
+  // Semua data alamat pribadi yang tersimpan pada sesi/form user sudah ikut dihapus
+  // melalui privateKeys di atas; alamat pada arsip admin sengaja dipertahankan.
+
+  // Jangan gunakan localStorage.clear() atau wildcard penghapusan. Hapus hanya
+  // pointer sesi milik user ini; jangan menyentuh data katalog/admin.
+  try {
+    localStorage.removeItem('dikyActiveUser');
+    sessionStorage.removeItem('diky_security_message');
+    sessionStorage.removeItem('diky_nav_target');
+    sessionStorage.removeItem('diky_nav_source');
+    sessionStorage.removeItem('diky_current_page');
+    sessionStorage.removeItem('diky_nav_time');
+  } catch (error) {
+    console.warn('Sesi user tidak dapat dibersihkan seluruhnya.', error);
+  }
+
+  window.location.replace('login.html');
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   if (!requireLogin()) return;
-  renderProfile();
+
+  // Force clean re-render to ensure only current user's profile is shown
+  forceCleanReRender();
+
   logoutFastButton.addEventListener('click', logoutQuick);
   logoutCleanButton.addEventListener('click', logoutClean);
 });

@@ -593,3 +593,15 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Shared responsive safeguards */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
+img, svg, video { max-width: 100%; height: auto; }
+button, .button, a.button { min-height: 44px; }
+@media (max-width: 680px) {
+  .container { width: min(100% - 1.25rem, 38rem); }
+  .cart-grid, .cart-layout, .content-grid { grid-template-columns: 1fr !important; }
+  .cart-item { grid-template-columns: 4rem minmax(0, 1fr); }
+  .button, button { width: 100%; }
+}

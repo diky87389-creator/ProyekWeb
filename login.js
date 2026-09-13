@@ -5,24 +5,26 @@ const toast = document.getElementById('login-toast');
 const usersKey = 'dikyRegisteredUsers';
 const activeUserKey = 'dikyActiveUser';
 const pendingGoogleKey = 'dikyPendingGoogleProfile';
+const ADMIN_EMAIL = 'diky87389@gmail.com';
+// Ganti nilai ini dengan password admin sebenarnya sebelum deployment.
+const ADMIN_PASSWORD = 'Diky4466';
 
 // Isi dengan OAuth Client ID Google agar tombol Google memakai akun asli
 // (nama, email, dan foto profil asli). Biarkan kosong untuk mode lokal.
 const googleClientId = '';
 
-function getActiveUser() {
-  const raw = localStorage.getItem(activeUserKey);
-  try {
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    console.warn('Data pengguna aktif tidak valid.', error);
+// Pergantian akun hanya mengganti session pointer. Data milik akun lama
+// tidak boleh dibersihkan karena harus tersedia saat akun tersebut login lagi.
+function forceCleanupOldSession() {
+  const currentUser = window.getActiveUser();
+  if (currentUser && currentUser.id) {
+    console.log('Session Override Guard: menutup sesi user:', currentUser.id);
     localStorage.removeItem(activeUserKey);
-    return null;
   }
 }
 
 function redirectIfLoggedIn() {
-  if (getActiveUser()) {
+  if (window.getActiveUser()) {
     window.location.href = 'index.html';
   }
 }
@@ -66,6 +68,18 @@ function getRegisteredUsers() {
 
 function saveActiveUser(user) {
   localStorage.setItem(activeUserKey, JSON.stringify(user));
+  if (user && user.id) {
+    localStorage.setItem('dikySessionActivity_' + String(user.id), String(Date.now()));
+  }
+}
+
+function ensureAdminRecord() {
+  const users = getRegisteredUsers();
+  const existing = users.find((item) => item && item.id === 99);
+  if (!existing) {
+    users.push({ id: 99, fullName: 'Diky Wahyudi', name: 'Diky Wahyudi', emailAddress: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: 'admin' });
+    saveRegisteredUsers(users);
+  }
 }
 
 function isValidEmail(email) {
@@ -90,9 +104,14 @@ function findUserByEmail(emailAddress) {
 function buildSession(user, extra = {}) {
   return {
     id: user.id,
-    fullName: user.fullName,
+    userId: user.userId || user.id,
+    name: user.name || user.fullName,
+    fullName: user.fullName || user.name,
+    username: user.username || null,
+    profileImage: user.profileImage || user.avatarUrl || null,
     emailAddress: user.emailAddress ? user.emailAddress.toLowerCase() : null,
     phoneNumber: user.phoneNumber || user.whatsappNumber || null,
+    address: user.address || null,
     avatarUrl: user.avatarUrl || null,
     authProvider: user.authProvider || 'email',
     loggedAt: new Date().toISOString(),
@@ -126,23 +145,36 @@ function handleLogin(event) {
     return;
   }
 
-  const user = findUserByEmail(emailAddress);
-  if (!user) {
-    showToast('Email belum terdaftar.');
-    return;
+  const isAdminLogin = emailAddress.toLowerCase() === ADMIN_EMAIL;
+  let user = findUserByEmail(emailAddress);
+
+  if (isAdminLogin) {
+    if (password !== ADMIN_PASSWORD) {
+      showToast('Email admin atau kata sandi admin salah.');
+      return;
+    }
+    user = { id: 99, fullName: 'Diky Wahyudi', name: 'Diky Wahyudi', emailAddress: ADMIN_EMAIL, role: 'admin' };
+    ensureAdminRecord();
+  } else {
+    if (!user) {
+      showToast('Email belum terdaftar.');
+      return;
+    }
+    if (user.password !== password) {
+      showToast('Kata sandi salah. Silakan coba lagi.');
+      return;
+    }
+    user.role = user.role === 'admin' ? 'admin' : 'user';
   }
 
-  if (user.password !== password) {
-    showToast('Kata sandi salah. Silakan coba lagi.');
-    return;
-  }
+  forceCleanupOldSession();
+  const session = buildSession(user, { role: user.role });
+  saveActiveUser(session);
 
-  saveActiveUser(buildSession(user));
-
-  showToast('Login berhasil! Mengarahkan ke halaman utama...');
+  showToast('Login berhasil! Mengarahkan...');
   window.setTimeout(() => {
-    window.location.href = 'index.html';
-  }, 1700);
+    window.location.href = isAdminLogin ? 'admin-dashboard.html' : 'index.html';
+  }, 700);
 }
 
 function signUpWithGoogleProfile(profile) {
@@ -259,6 +291,11 @@ function handleGoogleSignUpClick() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  const securityMessage = sessionStorage.getItem('diky_security_message');
+  if (securityMessage) {
+    showToast(securityMessage);
+    sessionStorage.removeItem('diky_security_message');
+  }
   redirectIfLoggedIn();
   localStorage.removeItem(pendingGoogleKey);
   window.setTimeout(setupGoogleIdentity, 600);

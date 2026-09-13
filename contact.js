@@ -1,39 +1,9 @@
-const activeUserKey = 'dikyActiveUser';
 const contactForm = document.getElementById('contact-form');
 const toast = document.getElementById('contact-toast');
 
-function normalizeActiveUser(user) {
-  const { whatsappNumber, ...rest } = user;
-  return {
-    ...rest,
-    phoneNumber: user.phoneNumber || whatsappNumber || null
-  };
-}
-
-function saveActiveUser(user) {
-  const { whatsappNumber, ...rest } = user;
-  localStorage.setItem(activeUserKey, JSON.stringify(rest));
-}
-
-function getActiveUser() {
-  const raw = localStorage.getItem(activeUserKey);
-  try {
-    const user = raw ? JSON.parse(raw) : null;
-    if (!user) return null;
-    const normalizedUser = normalizeActiveUser(user);
-    if (JSON.stringify(normalizedUser) !== JSON.stringify(user)) {
-      saveActiveUser(normalizedUser);
-    }
-    return normalizedUser;
-  } catch (error) {
-    console.warn('Data pengguna aktif tidak valid.', error);
-    localStorage.removeItem(activeUserKey);
-    return null;
-  }
-}
-
 function requireLogin() {
-  if (!getActiveUser()) {
+  if (!isValidSession()) {
+    console.warn('requireLogin: Sesi tidak valid, redirect ke login');
     window.location.href = 'login.html';
     return false;
   }
@@ -64,7 +34,7 @@ function isValidContact(contactInfo) {
 }
 
 function autoFillContactForm() {
-  const user = getActiveUser();
+  const user = window.getActiveUser();
   if (!user) return;
 
   const nameField = document.getElementById('contact-name');

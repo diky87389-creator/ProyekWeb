@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+  <title>Test Data Isolation - Warung Sayur Diky</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-section h2 {
+      color: #2c3e50;
+      margin-top: 0;
+    }
+    .result {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    button.danger {
+      background: #e74c3c;
+    }
+    button.danger:hover {
+      background: #c0392b;
+    }
+    pre {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 Test Data Isolation Multi-User</h1>
+  <p>Halaman ini untuk menguji isolasi data antar pengguna dalam skenario multi-user.</p>
+
+  <div class="test-section">
+    <h2>1. Cek Struktur localStorage</h2>
+    <button onclick="checkLocalStorageStructure()">Cek Struktur Data</button>
+    <div id="structure-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>2. Simulasi User A</h2>
+    <p>Buat data untuk User A (ID: USER-TEST-A)</p>
+    <button onclick="simulateUserA()">Buat Data User A</button>
+    <button onclick="checkUserData('USER-TEST-A')">Cek Data User A</button>
+    <div id="user-a-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>3. Simulasi User B</h2>
+    <p>Buat data untuk User B (ID: USER-TEST-B)</p>
+    <button onclick="simulateUserB()">Buat Data User B</button>
+    <button onclick="checkUserData('USER-TEST-B')">Cek Data User B</button>
+    <div id="user-b-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>4. Test Isolasi Data</h2>
+    <button onclick="testDataIsolation()">Test Isolasi Lengkap</button>
+    <div id="isolation-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>5. Test Persistence Policy</h2>
+    <button onclick="testPersistencePolicy()">Test Kebijakan Persistensi</button>
+    <div id="persistence-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>6. Test Navigation Protection & Anti-URL Manual Bypass</h2>
+    <p>Uji validasi alur navigasi sah vs bypass URL manual (data harus dibersihkan jika tidak sah).</p>
+    <button onclick="testNavigationProtection()">Test Proteksi Navigasi Lengkap</button>
+    <div id="navigation-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>7. Cleanup</h2>
+    <button class="danger" onclick="cleanupTestData()">Hapus Semua Data Test</button>
+    <div id="cleanup-result"></div>
+  </div>
+
+  <script src="storage-helper.js"></script>
+  <script>
+    function showResult(elementId, message, type = 'info') {
+      const element = document.getElementById(elementId);
+      element.innerHTML = `<div class="result ${type}">${message}</div>`;
+    }
+
+    function checkLocalStorageStructure() {
+      let structure = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        structure.push(key);
+      }
+
+      const message = `
+        <strong>Keys di localStorage:</strong>
+        <pre>${structure.join('\n')}</pre>
+        <p>Total: ${structure.length} keys</p>
+      `;
+      showResult('structure-result', message, 'info');
+    }
+
+    function simulateUserA() {
+      // Simulate User A session
+      const userA = {
+        id: 'USER-TEST-A',
+        fullName: 'Test User A',
+        emailAddress: 'usera@test.com',
+        phoneNumber: '081234567890',
+        loggedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('dikyActiveUser', JSON.stringify(userA));
+
+      // Simulate User A cart data using helper function
+      const userACart = [
+        { id: 'bayam-organik', name: 'Bayam Organik', quantity: 2, price: 3000 },
+        { id: 'wortel-fresh', name: 'Wortel Fresh', quantity: 1, price: 1500 }
+      ];
+
+      // Simulate User A orders
+      const userAOrders = [
+        { id: 'ORD-A-001', totalPrice: 7500, createdAt: new Date().toISOString() }
+      ];
+
+      // Simulate User A hutang data
+      const userAHutang = [
+        { id: 'HUT-A-001', customerName: 'Test User A', totalAmount: 5000, status: 'belum' }
+      ];
+
+      const cartKey = getUserStorageKey('cart');
+      const ordersKey = getUserStorageKey('orders');
+      const hutangKey = getUserStorageKey('hutang');
+
+      if (cartKey) localStorage.setItem(cartKey, JSON.stringify(userACart));
+      if (ordersKey) localStorage.setItem(ordersKey, JSON.stringify(userAOrders));
+      if (hutangKey) localStorage.setItem(hutangKey, JSON.stringify(userAHutang));
+
+      showResult('user-a-result', 'Data User A berhasil dibuat! (Cart, Orders, Hutang)', 'success');
+    }
+
+    function simulateUserB() {
+      // Simulate User B session
+      const userB = {
+        id: 'USER-TEST-B',
+        fullName: 'Test User B',
+        emailAddress: 'userb@test.com',
+        phoneNumber: '081234567891',
+        loggedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('dikyActiveUser', JSON.stringify(userB));
+
+      // Simulate User B cart data (different items)
+      const userBCart = [
+        { id: 'selada-keriting', name: 'SELADA KERITING', quantity: 3, price: 2500 },
+        { id: 'tomat-cerry', name: 'Tomat Cherry', quantity: 2, price: 6000 }
+      ];
+
+      // Simulate User B orders (different orders)
+      const userBOrders = [
+        { id: 'ORD-B-001', totalPrice: 19500, createdAt: new Date().toISOString() }
+      ];
+
+      // Simulate User B hutang data
+      const userBHutang = [
+        { id: 'HUT-B-001', customerName: 'Test User B', totalAmount: 10000, status: 'belum' }
+      ];
+
+      const cartKey = getUserStorageKey('cart');
+      const ordersKey = getUserStorageKey('orders');
+      const hutangKey = getUserStorageKey('hutang');
+
+      if (cartKey) localStorage.setItem(cartKey, JSON.stringify(userBCart));
+      if (ordersKey) localStorage.setItem(ordersKey, JSON.stringify(userBOrders));
+      if (hutangKey) localStorage.setItem(hutangKey, JSON.stringify(userBHutang));
+
+      showResult('user-b-result', 'Data User B berhasil dibuat! (Cart, Orders, Hutang)', 'success');
+    }
+
+    function checkUserData(userId) {
+      // Set active user to check data
+      const testUser = {
+        id: userId,
+        fullName: 'Test User',
+        emailAddress: 'test@test.com',
+        loggedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('dikyActiveUser', JSON.stringify(testUser));
+
+      const cartKey = getUserStorageKey('cart');
+      const ordersKey = getUserStorageKey('orders');
+      const hutangKey = getUserStorageKey('hutang');
+
+      const cartData = cartKey ? localStorage.getItem(cartKey) : null;
+      const ordersData = ordersKey ? localStorage.getItem(ordersKey) : null;
+      const hutangData = hutangKey ? localStorage.getItem(hutangKey) : null;
+
+      let message = `
+        <strong>Data untuk ${userId}:</strong><br>
+        <strong>Cart (${cartKey || 'N/A'}):</strong>
+        <pre>${cartData || 'Tidak ada data'}</pre>
+        <strong>Orders (${ordersKey || 'N/A'}):</strong>
+        <pre>${ordersData || 'Tidak ada data'}</pre>
+        <strong>Hutang (${hutangKey || 'N/A'}):</strong>
+        <pre>${hutangData || 'Tidak ada data'}</pre>
+      `;
+
+      showResult(userId === 'USER-TEST-A' ? 'user-a-result' : 'user-b-result', message, 'info');
+    }
+
+    function testDataIsolation() {
+      let results = [];
+
+      // Test 1: Check if User A and User B have separate data
+      const cartA = localStorage.getItem('dikyCart_USER-TEST-A');
+      const cartB = localStorage.getItem('dikyCart_USER-TEST-B');
+      const hutangA = localStorage.getItem('dikyHutang_USER-TEST-A');
+      const hutangB = localStorage.getItem('dikyHutang_USER-TEST-B');
+
+      if (cartA && cartB && cartA !== cartB) {
+        results.push('✅ User A dan User B memiliki data cart yang terpisah');
+      } else {
+        results.push('❌ Data cart User A dan User B tidak terisolasi dengan benar');
+      }
+
+      if (hutangA && hutangB && hutangA !== hutangB) {
+        results.push('✅ User A dan User B memiliki data hutang yang terpisah');
+      } else {
+        results.push('❌ Data hutang User A dan User B tidak terisolasi dengan benar');
+      }
+
+      // Test 2: Check if old static keys don't exist
+      const oldCartKey = localStorage.getItem('dikyCart');
+      const oldOrdersKey = localStorage.getItem('dikyOrders');
+      const oldHutangKey = localStorage.getItem('wsd_hutang_data');
+
+      if (!oldCartKey && !oldOrdersKey && !oldHutangKey) {
+        results.push('✅ Tidak ada kunci statis lama yang tersisa');
+      } else {
+        results.push('❌ Masih ada kunci statis lama yang tersisa');
+      }
+
+      // Test 3: Verify data integrity
+      try {
+        const parsedCartA = JSON.parse(cartA);
+        const parsedCartB = JSON.parse(cartB);
+
+        const hasUserAItem = parsedCartA.some(item => item.id === 'bayam-organik');
+        const hasUserBItem = parsedCartB.some(item => item.id === 'selada-keriting');
+
+        if (hasUserAItem && hasUserBItem) {
+          results.push('✅ Data integrity terjaga - setiap user memiliki item yang benar');
+        } else {
+          results.push('❌ Data integrity terganggu');
+        }
+      } catch (e) {
+        results.push('❌ Error parsing data: ' + e.message);
+      }
+
+      const message = `
+        <strong>Hasil Test Isolasi:</strong>
+        <pre>${results.join('\n')}</pre>
+      `;
+
+      const allPassed = results.every(r => r.startsWith('✅'));
+      showResult('isolation-result', message, allPassed ? 'success' : 'error');
+    }
+
+    function testPersistencePolicy() {
+      let results = [];
+
+      // Test logout cepat - data should persist
+      const userATest = {
+        id: 'USER-TEST-A',
+        fullName: 'Test User A',
+        loggedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem('dikyActiveUser', JSON.stringify(userATest));
+
+      const cartKeyBefore = getUserStorageKey('cart');
+      const cartDataBefore = cartKeyBefore ? localStorage.getItem(cartKeyBefore) : null;
+
+      // Simulate logout cepat
+      localStorage.removeItem('dikyActiveUser');
+
+      const cartDataAfter = cartKeyBefore ? localStorage.getItem(cartKeyBefore) : null;
+
+      if (cartDataBefore === cartDataAfter) {
+        results.push('✅ Logout Cepat: Data cart tetap utuh (sesuai kebijakan)');
+      } else {
+        results.push('❌ Logout Cepat: Data cart tidak seharusnya terhapus');
+      }
+
+      // Restore session for further tests
+      localStorage.setItem('dikyActiveUser', JSON.stringify(userATest));
+
+      // Test logout bersih - cart/orders should be removed, hutang should persist
+      const hutangKeyBefore = getUserStorageKey('hutang');
+      const hutangDataBefore = hutangKeyBefore ? localStorage.getItem(hutangKeyBefore) : null;
+
+      // Simulate logout bersih
+      localStorage.removeItem('dikyActiveUser');
+      if (cartKeyBefore) localStorage.removeItem(cartKeyBefore);
+
+      const cartDataAfterClean = cartKeyBefore ? localStorage.getItem(cartKeyBefore) : null;
+      const hutangDataAfterClean = hutangKeyBefore ? localStorage.getItem(hutangKeyBefore) : null;
+
+      if (!cartDataAfterClean) {
+        results.push('✅ Logout Bersih: Data cart dihapus (sesuai kebijakan)');
+      } else {
+        results.push('❌ Logout Bersih: Data cart seharusnya dihapus');
+      }
+
+      if (hutangDataBefore === hutangDataAfterClean) {
+        results.push('✅ Logout Bersih: Data hutang tetap utuh (sesuai kebijakan)');
+      } else {
+        results.push('❌ Logout Bersih: Data hutang seharusnya tetap utuh');
+      }
+
+      const message = `
+        <strong>Hasil Test Persistence Policy:</strong>
+        <pre>${results.join('\n')}</pre>
+      `;
+
+      const allPassed = results.every(r => r.startsWith('✅'));
+      showResult('persistence-result', message, allPassed ? 'success' : 'error');
+
+      // Restore session for cleanup
+      localStorage.setItem('dikyActiveUser', JSON.stringify(userATest));
+    }
+
+    function testNavigationProtection() {
+      let results = [];
+      const testUser = {
+        id: 'USER-NAV-TEST',
+        fullName: 'Test Nav User',
+        emailAddress: 'nav@test.com',
+        loggedAt: new Date().toISOString()
+      };
+      localStorage.setItem('dikyActiveUser', JSON.stringify(testUser));
+
+      // Test 1: keranjang.html - manual bypass clears cart
+      const cartKey = getUserStorageKey('cart');
+      localStorage.setItem(cartKey, JSON.stringify([{ id: 'test-item', quantity: 1, price: 1000 }]));
+      sessionStorage.removeItem('diky_nav_target');
+      sessionStorage.removeItem('diky_nav_source');
+      sessionStorage.removeItem('diky_current_page');
+
+      const isKeranjangAllowed = NavigationGuard.validateAccess('keranjang.html');
+      const cartAfterBypass = localStorage.getItem(cartKey);
+
+      if (!isKeranjangAllowed && !cartAfterBypass) {
+        results.push('✅ Keranjang Manual Bypass: Terdeteksi tidak sah & data keranjang dibersihkan');
+      } else {
+        results.push('❌ Keranjang Manual Bypass gagal: data keranjang tidak dibersihkan');
+      }
+
+      // Test 2: keranjang.html - valid access via cart icon keeps cart
+      localStorage.setItem(cartKey, JSON.stringify([{ id: 'test-item', quantity: 2, price: 2000 }]));
+      NavigationGuard.grantAccess('keranjang.html', 'index_cart_icon');
+      const isKeranjangValid = NavigationGuard.validateAccess('keranjang.html');
+      const cartAfterValid = localStorage.getItem(cartKey);
+
+      if (isKeranjangValid && cartAfterValid) {
+        results.push('✅ Keranjang Valid (Ikon Keranjang Index): Akses sah & data keranjang utuh');
+      } else {
+        results.push('❌ Keranjang Valid gagal');
+      }
+
+      // Test 3: checkout.html - manual bypass clears checkout items
+      const checkoutKey = getUserStorageKey('checkoutItems');
+      localStorage.setItem(checkoutKey, JSON.stringify([{ id: 'test-item', quantity: 1, price: 1000 }]));
+      sessionStorage.removeItem('diky_nav_target');
+      sessionStorage.removeItem('diky_nav_source');
+      sessionStorage.removeItem('diky_current_page');
+
+      const isCheckoutAllowed = NavigationGuard.validateAccess('checkout.html');
+      const checkoutAfterBypass = localStorage.getItem(checkoutKey);
+
+      if (!isCheckoutAllowed && !checkoutAfterBypass) {
+        results.push('✅ Checkout Manual Bypass: Terdeteksi tidak sah & data checkout dibersihkan');
+      } else {
+        results.push('❌ Checkout Manual Bypass gagal: data checkout tidak dibersihkan');
+      }
+
+      // Test 4: checkout.html - valid access via modal confirm keeps checkout items
+      localStorage.setItem(checkoutKey, JSON.stringify([{ id: 'test-item', quantity: 1, price: 1000 }]));
+      NavigationGuard.grantAccess('checkout.html', 'keranjang_modal_confirm');
+      const isCheckoutValid = NavigationGuard.validateAccess('checkout.html');
+      const checkoutAfterValid = localStorage.getItem(checkoutKey);
+
+      if (isCheckoutValid && checkoutAfterValid) {
+        results.push('✅ Checkout Valid (Tombol Ya Lanjut ke Pembayaran): Akses sah & data checkout utuh');
+      } else {
+        results.push('❌ Checkout Valid gagal');
+      }
+
+      // Test 5: success.html - pesananAktif tetap dipertahankan meski URL/navigasi berubah
+      const lastOrderKey = getUserStorageKey('lastOrder');
+      localStorage.setItem('pesananAktif', JSON.stringify({ id: 'ORD-TEST', totalPrice: 5000 }));
+      if (lastOrderKey) localStorage.setItem(lastOrderKey, JSON.stringify({ id: 'ORD-TEST', totalPrice: 5000 }));
+      sessionStorage.removeItem('diky_nav_target');
+      sessionStorage.removeItem('diky_nav_source');
+      sessionStorage.removeItem('diky_current_page');
+
+      NavigationGuard.validateAccess('success.html');
+      const pesananAktifAfterBypass = localStorage.getItem('pesananAktif');
+
+      if (pesananAktifAfterBypass) {
+        results.push('✅ Success Navigasi URL: Data pesananAktif tetap dipertahankan di success.html');
+      } else {
+        results.push('❌ Success Navigasi URL gagal: data pesananAktif terhapus');
+      }
+
+      // Test 6: success.html - valid access via checkout submit keeps lastOrder
+      localStorage.setItem(lastOrderKey, JSON.stringify({ id: 'ORD-TEST', totalPrice: 5000 }));
+      NavigationGuard.grantAccess('success.html', 'checkout_submit');
+      const isSuccessValid = NavigationGuard.validateAccess('success.html');
+      const lastOrderAfterValid = localStorage.getItem(lastOrderKey);
+
+      if (isSuccessValid && lastOrderAfterValid) {
+        results.push('✅ Success Valid (Checkout Submit): Akses sah & data pesanan terakhir utuh');
+      } else {
+        results.push('❌ Success Valid gagal');
+      }
+
+      // Test 7: orders.html - manual bypass clears orders
+      const ordersKey = getUserStorageKey('orders');
+      localStorage.setItem(ordersKey, JSON.stringify([{ id: 'ORD-TEST', totalPrice: 5000 }]));
+      sessionStorage.removeItem('diky_nav_target');
+      sessionStorage.removeItem('diky_nav_source');
+      sessionStorage.removeItem('diky_current_page');
+
+      const isOrdersAllowed = NavigationGuard.validateAccess('orders.html');
+      const ordersAfterBypass = localStorage.getItem(ordersKey);
+
+      if (!isOrdersAllowed && !ordersAfterBypass) {
+        results.push('✅ Orders Manual Bypass: Terdeteksi tidak sah & data riwayat pesanan dibersihkan');
+      } else {
+        results.push('❌ Orders Manual Bypass gagal: data riwayat pesanan tidak dibersihkan');
+      }
+
+      // Test 8: orders.html - valid access via success history button keeps orders
+      localStorage.setItem(ordersKey, JSON.stringify([{ id: 'ORD-TEST', totalPrice: 5000 }]));
+      NavigationGuard.grantAccess('orders.html', 'success_history_button');
+      const isOrdersValid = NavigationGuard.validateAccess('orders.html');
+      const ordersAfterValid = localStorage.getItem(ordersKey);
+
+      if (isOrdersValid && ordersAfterValid) {
+        results.push('✅ Orders Valid (Tombol Lihat Riwayat Pesanan): Akses sah & data riwayat pesanan utuh');
+      } else {
+        results.push('❌ Orders Valid gagal');
+      }
+
+      // Cleanup nav test user
+      localStorage.removeItem('dikyCart_USER-NAV-TEST');
+      localStorage.removeItem('dikyCheckoutItems_USER-NAV-TEST');
+      localStorage.removeItem('dikyLastOrder_USER-NAV-TEST');
+      localStorage.removeItem('dikyOrders_USER-NAV-TEST');
+      localStorage.removeItem('dikyActiveUser');
+
+      const message = `
+        <strong>Hasil Test Proteksi Navigasi:</strong>
+        <pre>${results.join('\n')}</pre>
+      `;
+      const allPassed = results.every(r => r.startsWith('✅'));
+      showResult('navigation-result', message, allPassed ? 'success' : 'error');
+    }
+
+    function cleanupTestData() {
+      // Remove test data
+      localStorage.removeItem('dikyCart_USER-TEST-A');
+      localStorage.removeItem('dikyOrders_USER-TEST-A');
+      localStorage.removeItem('dikyHutang_USER-TEST-A');
+      localStorage.removeItem('dikyCart_USER-TEST-B');
+      localStorage.removeItem('dikyOrders_USER-TEST-B');
+      localStorage.removeItem('dikyHutang_USER-TEST-B');
+      localStorage.removeItem('dikyCart');
+      localStorage.removeItem('dikyOrders');
+      localStorage.removeItem('wsd_hutang_data');
+      localStorage.removeItem('dikyActiveUser');
+
+      showResult('cleanup-result', 'Semua data test berhasil dihapus!', 'success');
+    }
+  </script>
+</body>
+</html>

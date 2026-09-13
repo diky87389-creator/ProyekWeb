@@ -1,7 +1,3 @@
-const cartKey = 'dikyCart';
-const checkoutItemsKey = 'dikyCheckoutItems'; // Penyimpanan khusus untuk checkout
-const summaryKey = 'dikyCheckoutSummary';
-const activeUserKey = 'dikyActiveUser';
 const cartList = document.getElementById('cart-list');
 const cartStatus = document.getElementById('cart-status');
 const summaryItems = document.getElementById('summary-items');
@@ -13,72 +9,26 @@ const modalTotal = document.getElementById('modal-total');
 const modalCancel = document.getElementById('modal-cancel');
 const modalConfirm = document.getElementById('modal-confirm');
 
-// Product data for unit selection
-const products = [
-  {
-    id: 'bayam-organik',
-    name: 'Bayam Organik',
-    description: 'Bayam segar dengan daun hijau lebat, ideal untuk tumisan dan sayur bening.',
-    image: 'images/Toko Sayur Online.png',
-    units: [
-      { name: 'per ikat kecil', price: 3000 },
-      { name: 'per ikat sedang', price: 5000 }
-    ]
-  },
-  {
-    id: 'wortel-fresh',
-    name: 'Wortel Fresh',
-    description: 'Wortel manis dengan tekstur renyah, cocok untuk salad dan sup sayur.',
-    image: 'images/Toko Sayur Online (1).png',
-    units: [
-      { name: 'per buah', price: 1500 },
-      { name: 'per 250g', price: 4500 },
-      { name: 'per 500g', price: 8500 },
-      { name: 'per ikat', price: 5000 }
-    ]
-  },
-  {
-    id: 'selada-keriting',
-    name: 'SELADA KERITING',
-    description: 'Selada hijau segar yang renyah, sempurna untuk menu sehat harian.',
-    image: 'images/Toko Sayur Online (2).png',
-    units: [
-      { name: 'per ikat kecil', price: 2500 },
-      { name: 'per bungkus/pack', price: 4000 }
-    ]
-  },
-  {
-    id: 'tomat-cerry',
-    name: 'Tomat Cherry',
-    description: 'Tomat ceri manis dengan warna merah cerah, cocok untuk camilan dan garnish.',
-    image: 'images/Toko Sayur Online (3).png',
-    units: [
-      { name: 'per buah/biji', price: 1000 },
-      { name: 'per pack 100g', price: 6000 },
-      { name: 'per pack 250g', price: 12000 }
-    ]
-  },
-  {
-    id: 'terong-ungu',
-    name: 'Terong Ungu',
-    description: 'Terong segar dengan kulit mengkilap, cocok untuk sate, balado, dan tumisan.',
-    image: 'images/Toko Sayur Online (4).png',
-    units: [
-      { name: 'per buah', price: 2000 },
-      { name: 'per paket (isi 3 buah)', price: 5000 }
-    ]
-  },
-  {
-    id: 'buncis-segar',
-    name: 'Buncis Segar',
-    description: 'Buncis hijau renta dengan rasa manis alami, pilihan sehat untuk sayur campur.',
-    image: 'images/Toko Sayur Online (5).png',
-    units: [
-      { name: 'per ikat kecil', price: 3000 },
-      { name: 'per 250g', price: 6000 }
-    ]
+// Produk untuk pilihan satuan selalu berasal dari katalog admin.
+let products = [];
+
+function loadProducts() {
+  try {
+    const data = JSON.parse(localStorage.getItem('dikyProducts') || '[]');
+    products = Array.isArray(data)
+      ? data.filter((product) => product && product.id && Array.isArray(product.units) && product.units.length)
+      : [];
+  } catch (error) {
+    products = [];
   }
-];
+}
+
+window.addEventListener('storage', (event) => {
+  if (event.key === 'dikyProducts') {
+    loadProducts();
+    renderCart();
+  }
+});
 
 function escapeHTML(value) {
   return String(value)
@@ -95,19 +45,9 @@ function clearElement(element) {
   }
 }
 
-function getActiveUser() {
-  const raw = localStorage.getItem(activeUserKey);
-  try {
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    console.warn('Data pengguna aktif tidak valid.', error);
-    localStorage.removeItem(activeUserKey);
-    return null;
-  }
-}
-
 function requireLogin() {
-  if (!getActiveUser()) {
+  if (!isValidSession()) {
+    console.warn('requireLogin: Sesi tidak valid, redirect ke login');
     window.location.href = 'login.html';
     return false;
   }
@@ -123,9 +63,20 @@ function formatPrice(value) {
 }
 
 function getCart() {
+  loadProducts();
+  if (!products.length) return [];
+  const cartKey = getUserStorageKey('cart');
+  if (!cartKey) {
+    console.warn('getCart: Tidak dapat mengakses keranjang - user tidak valid');
+    return [];
+  }
+
   const raw = localStorage.getItem(cartKey);
   try {
-    return raw ? JSON.parse(raw) : [];
+    const savedItems = typeof normalizeCart === 'function'
+      ? normalizeCart(raw ? JSON.parse(raw) : [])
+      : (raw ? JSON.parse(raw) : []);
+    return savedItems.filter((item) => products.some((product) => product.id === item.id));
   } catch (error) {
     console.warn('Data keranjang tidak valid, menginisialisasi ulang.', error);
     localStorage.removeItem(cartKey);
@@ -134,12 +85,40 @@ function getCart() {
 }
 
 function saveCart(cart) {
-  localStorage.setItem(cartKey, JSON.stringify(cart));
+  cart = typeof normalizeCart === 'function' ? normalizeCart(cart) : cart;
+  const cartKey = getUserStorageKey('cart');
+  if (!cartKey) {
+    console.warn('saveCart: Tidak dapat menyimpan keranjang - user tidak valid');
+    return;
+  }
+
+  const compactCart = typeof compactOrderItems === 'function' ? compactOrderItems(cart) : cart;
+  const savedCart = typeof writeUserStorage === 'function'
+    ? writeUserStorage(cartKey, compactCart, [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')])
+    : (() => { try { localStorage.setItem(cartKey, JSON.stringify(compactCart)); return true; } catch (error) { console.warn('Penyimpanan keranjang penuh.', error); return false; } })();
+  if (!savedCart) return;
+  // Pesanan baru berdiri sendiri; simpan hanya satu snapshot minimal per user.
+  if (typeof simpanPesananBaru === 'function') {
+    simpanPesananBaru({ items: compactCart, updatedAt: new Date().toISOString() });
+  }
+  if (cart && cart.length > 0) {
+    if (typeof setUserLastPosition === 'function') setUserLastPosition('keranjang.html');
+  }
   saveCheckoutSummary(cart);
   renderCart();
+
+  if (window.SmartGuide && typeof window.SmartGuide.init === 'function') {
+    window.SmartGuide.init();
+  }
 }
 
 function saveCheckoutSummary(cart) {
+  const summaryKey = getUserStorageKey('checkoutSummary');
+  if (!summaryKey) {
+    console.warn('saveCheckoutSummary: Tidak dapat menyimpan summary - user tidak valid');
+    return;
+  }
+
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const summary = {
@@ -148,7 +127,11 @@ function saveCheckoutSummary(cart) {
     updatedAt: new Date().toISOString()
   };
 
-  localStorage.setItem(summaryKey, JSON.stringify(summary));
+  if (typeof writeUserStorage === 'function') {
+    writeUserStorage(summaryKey, summary, [getUserStorageKey('checkoutForm')]);
+  } else {
+    try { localStorage.setItem(summaryKey, JSON.stringify(summary)); } catch (error) { console.warn('Summary checkout tidak dapat disimpan.', error); }
+  }
 }
 
 function updateTotals(cart) {
@@ -159,18 +142,6 @@ function updateTotals(cart) {
   summaryTotal.textContent = formatPrice(totalPrice);
   checkoutButton.disabled = totalItems === 0;
   cartStatus.textContent = totalItems === 0 ? 'Keranjang kosong' : `${totalItems} produk siap checkout`;
-}
-
-function saveCheckoutSummary(cart) {
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const summary = {
-    totalItems,
-    totalPrice,
-    updatedAt: new Date().toISOString()
-  };
-
-  localStorage.setItem(summaryKey, JSON.stringify(summary));
 }
 
 function updateTotals(cart) {
@@ -250,7 +221,7 @@ function createCartItemElement(item) {
 
   const thumbnail = document.createElement('img');
   thumbnail.className = 'item-thumbnail';
-  thumbnail.src = item.image || 'images/Toko Sayur Online.png';
+  thumbnail.src = typeof resolveProductImage === 'function' ? resolveProductImage(item) : (item.image || 'images/Toko Sayur Online.png');
   thumbnail.alt = item.name;
 
   const itemContent = document.createElement('div');
@@ -458,6 +429,14 @@ function openConfirmationModal() {
   confirmModal.setAttribute('aria-hidden', 'false');
 }
 
+function forceCleanReRender() {
+  // Clear all UI elements and re-render with current user's cart data
+  clearElement(cartList);
+  renderCart();
+
+  console.log('Clean re-render completed for cart page');
+}
+
 function closeConfirmationModal() {
   confirmModal.classList.remove('active');
   confirmModal.setAttribute('aria-hidden', 'true');
@@ -465,7 +444,17 @@ function closeConfirmationModal() {
 
 function initializeCartPage() {
   if (!requireLogin()) return;
-  renderCart();
+  loadProducts();
+
+  // Proteksi navigasi anti-URL manual bypass:
+  // Halaman tetap dibuka, tetapi jika akses tidak sah via ketik URL manual,
+  // data daftar keranjang dihapus/dibersihkan sehingga keranjang tampil kosong.
+  if (window.NavigationGuard && typeof window.NavigationGuard.validateAccess === 'function') {
+    window.NavigationGuard.validateAccess('keranjang.html');
+  }
+
+  // Force clean re-render to ensure current cart state is rendered
+  forceCleanReRender();
 
   checkoutButton.addEventListener('click', () => {
     if (!checkoutButton.disabled) {
@@ -477,6 +466,16 @@ function initializeCartPage() {
   modalConfirm.addEventListener('click', () => {
     const cart = getCart();
     if (cart.length > 0) {
+      const compactCart = typeof compactOrderItems === 'function' ? compactOrderItems(cart) : cart;
+      if (typeof simpanPesananBaru === 'function') {
+        simpanPesananBaru({ items: compactCart, updatedAt: new Date().toISOString() });
+      }
+      const checkoutItemsKey = getUserStorageKey('checkoutItems');
+      if (!checkoutItemsKey) {
+        console.warn('Tidak dapat memproses checkout - user tidak valid');
+        return;
+      }
+
       // Akumulasi pesanan: jangan timpa data checkout yang sudah ada.
       // - Produk + varian yang sama (cartItemId sama) → tambahkan kuantitasnya.
       // - Produk/varian berbeda → tambahkan sebagai baris item baru.
@@ -494,19 +493,32 @@ function initializeCartPage() {
         if (match) {
           match.quantity += newItem.quantity;
         } else {
-          existing.push({ ...newItem });
+          existing.push(typeof compactOrderItems === 'function' ? compactOrderItems([newItem])[0] : { ...newItem });
         }
       });
 
-      localStorage.setItem(checkoutItemsKey, JSON.stringify(existing));
+      const savedCheckout = typeof writeUserStorage === 'function'
+        ? writeUserStorage(checkoutItemsKey, typeof compactOrderItems === 'function' ? compactOrderItems(existing) : existing, [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')])
+        : (() => { try { localStorage.setItem(checkoutItemsKey, JSON.stringify(existing)); return true; } catch (error) { console.warn('Penyimpanan checkout penuh.', error); return false; } })();
+      if (!savedCheckout) {
+        alert('Penyimpanan perangkat penuh. Hapus data sementara browser lalu coba lagi.');
+        return;
+      }
     }
 
-    // Bersihkan riwayat keranjang dan ringkasan
-    localStorage.removeItem(cartKey);
-    localStorage.removeItem(summaryKey);
+    // Bersihkan data keranjang saat ini karena sudah dipindahkan ke checkout (Rule 3)
+    const cartKey = getUserStorageKey('cart');
+    const summaryKey = getUserStorageKey('checkoutSummary');
+    if (cartKey) localStorage.removeItem(cartKey);
+    if (summaryKey) localStorage.removeItem(summaryKey);
 
     // Update position tracker ke checkout.html
-    localStorage.setItem('dikyLastPosition', 'checkout.html');
+    if (typeof setUserLastPosition === 'function') setUserLastPosition('checkout.html');
+
+    // Berikan otorisasi navigasi sah ke checkout.html dari tombol modal konfirmasi
+    if (window.NavigationGuard && typeof window.NavigationGuard.grantAccess === 'function') {
+      window.NavigationGuard.grantAccess('checkout.html', 'keranjang_modal_confirm');
+    }
 
     // Redirect ke checkout
     window.location.href = 'checkout.html';
@@ -526,3 +538,12 @@ function initializeCartPage() {
 }
 
 window.addEventListener('DOMContentLoaded', initializeCartPage);
+window.addEventListener('pageshow', function () {
+  if (typeof isValidSession === 'function' && isValidSession()) {
+    loadProducts();
+    if (window.NavigationGuard && typeof window.NavigationGuard.validateAccess === 'function') {
+      window.NavigationGuard.validateAccess('keranjang.html');
+    }
+    forceCleanReRender();
+  }
+});

@@ -381,6 +381,10 @@ body {
   font-weight: 700;
 }
 
+.debt-item-images { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.debt-item-image, .receipt-item-image { width: 36px; height: 36px; object-fit: cover; border-radius: 8px; }
+.receipt-item-image { vertical-align: middle; margin-right: 6px; }
+
 .debt-sub {
   margin: 0.15rem 0 0;
   font-size: 0.85rem;
@@ -929,4 +933,16 @@ body {
   body {
     background: #fff;
   }
+}
+/* Responsive safeguards */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
+img, svg, video { max-width: 100%; height: auto; }
+button, .button, a.button { min-height: 44px; }
+@media (max-width: 680px) {
+  .container { width: min(100% - 1.25rem, 38rem); }
+  .summary-grid, .stats-grid, .content-grid { grid-template-columns: 1fr !important; }
+  .debt-top { flex-wrap: wrap; gap: 1rem; }
+  .debt-actions { display: grid; grid-template-columns: 1fr; }
+  .button, button { width: 100%; }
 }

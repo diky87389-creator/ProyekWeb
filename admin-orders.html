@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+  <script src="admin-gate.js"></script>
+  <title>Kelola Pesanan - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="admin-orders.css">
+</head>
+<body>
+  <header class="topbar"><div class="bar-inner"><a class="brand" href="admin-dashboard.html">Warung Sayur Diky <span>Admin</span></a><a class="button button-light" href="admin-dashboard.html">← Dashboard</a></div></header>
+  <main class="container">
+    <section class="page-heading"><div><p class="eyebrow">Operasional toko</p><h1>Kelola Pesanan</h1><p class="muted">Lihat dan perbarui pesanan dari seluruh pelanggan.</p></div><div class="page-actions"><button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button><button id="delete-all-orders" class="button button-danger" type="button">Hapus Semua Riwayat Pesanan</button></div></section>
+      <section class="toolbar" aria-label="Filter pesanan"><label for="search-orders">Cari pesanan<input id="search-orders" type="search" placeholder="ID atau nama pelanggan"></label><label for="status-filter">Status<select id="status-filter"><option value="all">Semua status</option><option value="menunggu">Menunggu</option><option value="diproses">Diproses</option><option value="dikirim">Dikirim</option><option value="siap_diambil">Silahkan Untuk Diambil</option><option value="selesai">Selesai</option><option value="dibatalkan">Dibatalkan</option></select></label></section>
+    <div id="orders-summary" class="summary" aria-live="polite"></div>
+    <section id="orders-list" class="orders-list" aria-label="Daftar pesanan" aria-live="polite"></section>
+  </main>
+  <dialog id="detail-dialog"><div class="dialog-head"><h2>Detail Pesanan</h2><button id="close-dialog" class="close" type="button" aria-label="Tutup">×</button></div><div id="order-detail"></div></dialog>
+  <script src="admin-orders.js" defer></script>
+</body>
+</html>

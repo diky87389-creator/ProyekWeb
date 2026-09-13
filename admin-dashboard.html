@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+  <script src="admin-gate.js"></script>
+  <title>Dashboard Admin - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="admin-dashboard.css">
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="admin-dashboard.html">Warung Sayur Diky <span>Admin</span></a><button id="logout-button" class="button button-outline" type="button">Logout</button></header>
+  <main class="container">
+    <section class="welcome"><div><p class="eyebrow">Pusat kendali toko</p><h1>Dashboard Admin</h1><p class="muted">Pantau operasional toko dari satu tempat.</p></div><time id="last-updated"></time></section>
+    <section class="stats-grid" aria-label="Ringkasan toko">
+      <article class="stat-card"><span class="stat-icon">📦</span><div><p>Total Pesanan</p><strong id="total-orders">0</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">🥬</span><div><p>Jumlah Produk</p><strong id="total-products">0</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">💳</span><div><p>Hutang Belum Lunas</p><strong id="unpaid-debts">0</strong></div></article>
+      <article class="stat-card"><span class="stat-icon">💰</span><div><p>Nilai Hutang</p><strong id="debt-value">Rp0</strong></div></article>
+    </section>
+    <section class="dashboard-grid">
+      <article class="panel"><div class="panel-heading"><div><p class="eyebrow">Akses cepat</p><h2>Manajemen Toko</h2></div></div><nav class="quick-links" aria-label="Navigasi admin"><a href="admin-orders.html" class="quick-link"><span>📦</span><div><strong>Kelola Pesanan</strong><small>Periksa dan proses pesanan masuk</small></div><b>›</b></a><a href="admin-hutang.html" class="quick-link"><span>📒</span><div><strong>Kelola Hutang</strong><small>Pantau kasbon pelanggan</small></div><b>›</b></a><a href="admin-products.html" class="quick-link"><span>🥕</span><div><strong>Kelola Produk</strong><small>Atur katalog dan harga sayur</small></div><b>›</b></a></nav></article>
+      <aside class="panel note-panel"><p class="eyebrow">Status sistem</p><h2>Data tersimpan lokal</h2><p class="muted">Ringkasan dihitung dari data pesanan dan hutang pada browser ini.</p><div class="status"><i></i><span>Session admin aktif</span></div></aside>
+    </section>
+  </main>
+  <script src="admin-dashboard.js" defer></script>
+</body>
+</html>

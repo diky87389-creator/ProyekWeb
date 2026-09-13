@@ -1,6 +1,3 @@
-const lastOrderKey = 'dikyLastOrder';
-const ordersKey = 'dikyOrders';
-const activeUserKey = 'dikyActiveUser';
 const successItems = document.getElementById('success-items');
 const successTotal = document.getElementById('success-total');
 const orderDate = document.getElementById('order-date');
@@ -22,19 +19,9 @@ function clearElement(element) {
   }
 }
 
-function getActiveUser() {
-  const raw = localStorage.getItem(activeUserKey);
-  try {
-    return raw ? JSON.parse(raw) : null;
-  } catch (error) {
-    console.warn('Data pengguna aktif tidak valid.', error);
-    localStorage.removeItem(activeUserKey);
-    return null;
-  }
-}
-
 function requireLogin() {
-  if (!getActiveUser()) {
+  if (!isValidSession()) {
+    console.warn('requireLogin: Sesi tidak valid, redirect ke login');
     window.location.href = 'login.html';
     return false;
   }
@@ -50,6 +37,17 @@ function formatPrice(value) {
 }
 
 function getLastOrder() {
+  if (typeof getPesananAktif === 'function') {
+    const activeOrder = getPesananAktif();
+    if (activeOrder) return activeOrder;
+  }
+
+  const lastOrderKey = getUserStorageKey('lastOrder');
+  if (!lastOrderKey) {
+    console.warn('getLastOrder: Tidak dapat mengakses order terakhir - user tidak valid');
+    return null;
+  }
+
   const raw = localStorage.getItem(lastOrderKey);
   try {
     return raw ? JSON.parse(raw) : null;
@@ -61,6 +59,12 @@ function getLastOrder() {
 }
 
 function getOrders() {
+  const ordersKey = getUserStorageKey('orders');
+  if (!ordersKey) {
+    console.warn('getOrders: Tidak dapat mengakses orders - user tidak valid');
+    return [];
+  }
+
   const raw = localStorage.getItem(ordersKey);
   try {
     return raw ? JSON.parse(raw) : [];
@@ -72,20 +76,47 @@ function getOrders() {
 }
 
 function saveOrders(orders) {
+  const ordersKey = getUserStorageKey('orders');
+  if (!ordersKey) {
+    console.warn('saveOrders: Tidak dapat menyimpan orders - user tidak valid');
+    return;
+  }
+
   localStorage.setItem(ordersKey, JSON.stringify(orders));
 }
 
-function clearCart() {
-  localStorage.removeItem('dikyCart');
-  localStorage.removeItem('dikyCheckoutForm');
-  localStorage.removeItem('dikyLastPosition');
+function clearTemporaryCheckoutData() {
+  const checkoutFormKey = getUserStorageKey('checkoutForm');
+  if (checkoutFormKey) {
+    localStorage.removeItem(checkoutFormKey);
+  }
+
+  const customerNameField = document.getElementById('customer-name');
+  const customerPhoneField = document.getElementById('customer-phone');
+  const customerAddressField = document.getElementById('customer-address');
+  if (customerNameField) customerNameField.value = '';
+  if (customerPhoneField) customerPhoneField.value = '';
+  if (customerAddressField) customerAddressField.value = '';
+
+  // CATATAN: JANGAN hapus cartKey di sini! Keranjang belanja kedua tetap aman di localStorage.
 }
 
 function renderLastOrder(order) {
   clearElement(successItems);
   successTotal.textContent = formatPrice(0);
 
-  if (!order) {
+  if (!order || !order.cart || !Array.isArray(order.cart)) {
+    orderDate.textContent = '-';
+    const deliveryMethodValue = document.getElementById('order-delivery-method');
+    if (deliveryMethodValue) deliveryMethodValue.textContent = '-';
+    const subtotalElement = document.getElementById('success-subtotal');
+    if (subtotalElement) subtotalElement.textContent = formatPrice(0);
+    const shippingElement = document.getElementById('success-shipping');
+    if (shippingElement) shippingElement.textContent = formatPrice(0);
+    const shippingCostValue = document.getElementById('order-shipping-cost');
+    if (shippingCostValue) shippingCostValue.textContent = formatPrice(0);
+    successTotal.textContent = formatPrice(0);
+
     const emptyMessage = document.createElement('p');
     emptyMessage.className = 'success-empty';
     emptyMessage.textContent = 'Tidak ada data pesanan terakhir.';
@@ -154,7 +185,7 @@ function renderLastOrder(order) {
 
     const itemImage = document.createElement('img');
     itemImage.className = 'summary-item-image';
-    itemImage.src = item.image || 'images/Toko Sayur Online.png';
+    itemImage.src = typeof resolveProductImage === 'function' ? resolveProductImage(item) : (item.image || 'images/Toko Sayur Online.png');
     itemImage.alt = item.name;
 
     const summaryInfo = document.createElement('div');
@@ -192,33 +223,56 @@ function storeOrderHistory(order) {
 
 function initializeSuccessPage() {
   if (!requireLogin()) return;
-  const order = getLastOrder();
-  renderLastOrder(order);
-  if (order) {
-    // Hanya bersihkan keranjang. Pesanan TIDAK boleh otomatis masuk ke
-    // riwayat (dikyOrders) di sini — itu hanya boleh terjadi ketika user
-    // menekan tombol "Lihat Riwayat Pesanan" secara sah. Dengan begitu:
-    //  - Pop-up "Pantau Pesanan Kamu Disini" tetap aktif di halaman lain
-    //    selama pesanan belum dipindahkan ke riwayat.
-    //  - Akses manual ke orders.html lewat ubah URL tidak akan ikut
-    //    mencatatkan pesanan sementara ini ke riwayat.
-    clearCart();
+
+  // Proteksi navigasi anti-URL manual bypass:
+  // Halaman tetap dibuka, tetapi jika akses tidak sah via ketik URL manual,
+  // data pesanan sukses dihapus/dibersihkan sehingga detail pesanan tampil kosong.
+  if (window.NavigationGuard && typeof window.NavigationGuard.validateAccess === 'function') {
+    window.NavigationGuard.validateAccess('success.html');
   }
 
+  const order = getLastOrder();
+  renderLastOrder(order);
+  clearTemporaryCheckoutData();
+
   historyButton.addEventListener('click', () => {
-    // Catat pesanan ke riwayat HANYA saat tombol ini ditekan secara sah.
-    // Jika user mengakses orders.html via ubah URL manual, pesanan sementara
-    // (dikyLastOrder) tidak akan masuk ke dikyOrders.
-    if (order) {
-      storeOrderHistory(order);
+    // Memindahkan data pesananAktif ke riwayatPesanan (array di localStorage)
+    if (typeof pindahkanKeRiwayatPesanan === 'function') {
+      pindahkanKeRiwayatPesanan();
+    } else {
+      if (order) {
+        storeOrderHistory(order);
+      }
+      const activeKey = getUserStorageKey('pesananAktif');
+      if (activeKey) localStorage.removeItem(activeKey);
+      const lastOrderKey = getUserStorageKey('lastOrder');
+      if (lastOrderKey) {
+        localStorage.removeItem(lastOrderKey);
+      }
     }
-    // Hapus data pesanan sementara seketika sebelum pindah ke riwayat,
-    // agar halaman success tidak lagi menampilkan pesanan lama saat user
-    // menekan tombol Back dari orders.html.
-    localStorage.removeItem(lastOrderKey);
-    localStorage.removeItem('dikyLastPosition');
+
+    const checkoutFormKey = getUserStorageKey('checkoutForm');
+    if (checkoutFormKey) {
+      localStorage.removeItem(checkoutFormKey);
+    }
+    if (typeof clearUserLastPosition === 'function') clearUserLastPosition();
+
+    // Berikan otorisasi navigasi sah ke orders.html dari tombol Lihat Riwayat Pesanan
+    if (window.NavigationGuard && typeof window.NavigationGuard.grantAccess === 'function') {
+      window.NavigationGuard.grantAccess('orders.html', 'success_history_button');
+    }
+
     window.location.href = 'orders.html';
   });
 }
 
 window.addEventListener('DOMContentLoaded', initializeSuccessPage);
+window.addEventListener('pageshow', function() {
+  if (typeof isValidSession === 'function' && isValidSession()) {
+    if (window.NavigationGuard && typeof window.NavigationGuard.validateAccess === 'function') {
+      window.NavigationGuard.validateAccess('success.html');
+    }
+    const order = getLastOrder();
+    renderLastOrder(order);
+  }
+});

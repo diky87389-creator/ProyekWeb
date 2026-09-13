@@ -239,10 +239,22 @@ button, .button {
 }
 
 .hero-card-image {
-  height: 260px;
-  background-image: url('https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80');
+  width: 100%;
+  min-height: 220px;
+  height: clamp(220px, 28vw, 320px);
+  background-image: url('images/Toko Sayur Online (3).png');
+  background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .hero-card-image {
+    min-height: 180px;
+    height: 52vw;
+    max-height: 260px;
+  }
 }
 
 .hero-card-body {
@@ -428,4 +440,30 @@ button, .button {
   .product-actions {
     flex-direction: column;
   }
+}
+
+/* Responsive foundation: mobile-first, no horizontal overflow */
+*, *::before, *::after { box-sizing: border-box; }
+html { overflow-x: hidden; -webkit-text-size-adjust: 100%; }
+body { min-width: 320px; max-width: 100%; overflow-x: hidden; }
+img, svg, video, canvas { display: block; max-width: 100%; height: auto; }
+button, a, input, select, textarea { font: inherit; }
+button, .button, a.button { min-height: 44px; }
+.container { width: min(1120px, calc(100% - 2rem)); margin-inline: auto; }
+@media (max-width: 767px) {
+  .container { width: min(100% - 1.25rem, 38rem); }
+  .site-header, .header-inner, .page-header, .site-nav { flex-wrap: wrap; }
+  .site-nav { width: 100%; justify-content: center; gap: .5rem; }
+  .site-nav a, .user-menu a, .user-menu button { min-height: 44px; display: inline-flex; align-items: center; }
+  .product-grid, .products-grid, .content-grid, .dashboard-grid { grid-template-columns: 1fr !important; }
+  .hero-card, .checkout-page, .contact-grid, .profile-grid, .form-grid { grid-template-columns: 1fr !important; }
+  .hero-content { min-width: 0; }
+  .hero-card { min-width: 0; overflow: hidden; }
+  .button, button { width: 100%; }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .product-grid, .products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .product-grid, .products-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

@@ -1,3 +1,13 @@
+.order-tabs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:.75rem; width:100%; margin:1rem 0 1.25rem; }
+.order-tab { width:100%; min-height:52px; padding:.8rem 1rem; border:1px solid #b9dcc2; border-radius:.7rem; color:#176337; background:#fff; font-weight:700; cursor:pointer; }
+.order-tab.active { color:#fff; background:#23834b; border-color:#23834b; }
+.order-status-message { margin:.5rem 0 0; color:#176337; font-weight:700; }
+.pickup-address { padding:.8rem; margin:0 0 1rem; color:#176337; background:#f1faf4; border-left:4px solid #23834b; }
+.order-map { height:260px; margin:0 0 1rem; border-radius:.75rem; overflow:hidden; }
+.courier-location-note { margin:0 0 1rem; color:var(--muted); font-size:.85rem; }
+.courier-map-icon { display:grid; place-items:center; font-size:1.65rem; line-height:1; }
+.orders-list { display:grid; gap:1rem; }
+button[hidden] { display:none; }
 :root {
   --bg: #f3faf3;
   --surface: #ffffff;
@@ -262,4 +272,23 @@ body {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+/* Responsive safeguards */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
+img, svg, video { max-width: 100%; height: auto; }
+button, .button, a.button { min-height: 44px; }
+@media (max-width: 680px) {
+  .container { width: min(100% - 1.25rem, 38rem); }
+  .order-header, .order-footer { flex-wrap: wrap; gap: .75rem; }
+  .item-row { grid-template-columns: 3.5rem minmax(0, 1fr); }
+  .item-total { grid-column: 2; text-align: left; }
+  .button, button { width: 100%; }
+}
+@media (max-width: 520px) {
+  .order-tabs { grid-template-columns: 1fr; }
+  .order-tab { min-height: 48px; }
+  .order-card { padding: 1rem; }
+  .order-map { height: 220px; }
 }

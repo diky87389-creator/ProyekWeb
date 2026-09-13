@@ -5,18 +5,64 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "wsd_hutang_data";
-  var debts = loadData();
+  var debts;
 
   // --- Data layer ---
   function loadData() {
+    var storageKey = getUserStorageKey('hutang');
+    if (!storageKey) {
+      console.warn('loadData: Tidak dapat mengakses data hutang - user tidak valid');
+      return [];
+    }
+
     try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      var raw = localStorage.getItem(storageKey);
+      var parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(function (debt) {
+        return debt && typeof debt === 'object' && Array.isArray(debt.items);
+      }).map(function (debt) {
+        debt.items = debt.items.map(function (item) {
+          var qty = Math.floor(Number(item.qty || item.quantity));
+          var price = Number(item.price);
+          if (!Number.isFinite(qty) || qty < 0) qty = 0;
+          if (!Number.isFinite(price) || price < 0) price = 0;
+          return Object.assign({}, item, { qty: qty, quantity: qty, price: price });
+        });
+        debt.totalAmount = Number.isFinite(Number(debt.totalAmount)) && Number(debt.totalAmount) >= 0
+          ? Number(debt.totalAmount) : calcTotal(debt);
+        return debt;
+      });
     } catch (e) {
       return [];
     }
   }
+
+  function saveData(data) {
+    var storageKey = getUserStorageKey('hutang');
+    if (!storageKey) {
+      console.warn('saveData: Tidak dapat menyimpan data hutang - user tidak valid');
+      return;
+    }
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Gagal menyimpan data hutang:', e);
+    }
+  }
+
+  function requireLogin() {
+    if (!isValidSession()) {
+      console.warn('requireLogin: Sesi tidak valid, redirect ke login');
+      window.location.href = 'login.html';
+      return false;
+    }
+    return true;
+  }
+
+  // Initialize debts after functions are defined
+  debts = loadData();
 
   // --- Helpers ---
   function formatCurrency(n) {
@@ -32,7 +78,9 @@
 
   function calcTotal(debt) {
     return (debt.items || []).reduce(function (sum, item) {
-      return sum + (Number(item.qty) || 0) * (Number(item.price) || 0);
+      var qty = Number(item.qty || item.quantity);
+      var price = Number(item.price);
+      return sum + (Number.isFinite(qty) && qty >= 0 ? qty : 0) * (Number.isFinite(price) && price >= 0 ? price : 0);
     }, 0);
   }
 
@@ -92,6 +140,8 @@
   }
 
   function renderList() {
+    const activeUser = typeof getActiveUser === 'function' ? getActiveUser() : null;
+    const username = activeUser && activeUser.username ? activeUser.username : '-';
     renderSummary();
     var filtered = getFilteredDebts();
 
@@ -105,8 +155,12 @@
     }
 
     debtList.innerHTML = filtered.map(function (d) {
-      var total = calcTotal(d);
-      var itemsText = (d.items || []).map(function (i) { return i.name + " ×" + i.qty; }).join(", ");
+      var total = Number(d.totalAmount) || calcTotal(d);
+      var itemsText = (d.items || []).map(function (i) { return i.name + " ×" + (i.qty || i.quantity || 0); }).join(", ");
+      var itemsImages = (d.items || []).map(function (i) {
+        var image = typeof resolveProductImage === 'function' ? resolveProductImage(i) : (i.image || 'images/Toko Sayur Online.png');
+        return '<img class="debt-item-image" src="' + escapeHtml(image) + '" alt="' + escapeHtml(i.name) + '">';
+      }).join('');
       var payInfoBtn = d.status === "belum"
         ? '<button class="action-btn action-pay" data-action="pay" data-id="' + d.id + '">💳 Cara Bayar</button>'
         : "";
@@ -121,8 +175,10 @@
         '<div class="debt-avatar">' + getInitials(d.customerName) + "</div>" +
         "<div>" +
         '<p class="debt-name">' + escapeHtml(d.customerName) + "</p>" +
+        '<p class="debt-sub">Username: ' + escapeHtml(d.username || username) + '</p>' +
         '<p class="debt-sub">' + formatDate(d.date) + (d.dueDate ? " • Jatuh tempo " + formatDate(d.dueDate) : "") + "</p>" +
         '<p class="debt-sub">' + escapeHtml(itemsText || "-") + "</p>" +
+        '<div class="debt-item-images">' + itemsImages + '</div>' +
         "</div>" +
         "</div>" +
         '<div class="debt-amount">' +
@@ -202,12 +258,14 @@
   var printReceiptBtn = document.getElementById("print-receipt-btn");
 
   function openReceiptModal(debt) {
-    var total = calcTotal(debt);
+    var total = Number(debt.totalAmount) || calcTotal(debt);
     var itemsHtml = (debt.items || []).map(function (i) {
+      var qty = Number(i.qty || i.quantity) || 0;
+      var image = typeof resolveProductImage === 'function' ? resolveProductImage(i) : (i.image || 'images/Toko Sayur Online.png');
       return (
         '<div class="receipt-item">' +
-        "<span>" + escapeHtml(i.name) + " ×" + i.qty + "</span>" +
-        "<span>" + formatCurrency((i.qty || 0) * (i.price || 0)) + "</span>" +
+        '<span><img class="receipt-item-image" src="' + escapeHtml(image) + '" alt="' + escapeHtml(i.name) + '"> ' + escapeHtml(i.name) + " ×" + qty + "</span>" +
+        "<span>" + formatCurrency(qty * (i.price || 0)) + "</span>" +
         "</div>"
       );
     }).join("");
@@ -288,7 +346,8 @@
   function sendWhatsApp(debt) {
     var total = calcTotal(debt);
     var itemsText = (debt.items || []).map(function (i) {
-      return "• " + i.name + " ×" + i.qty + " = " + formatCurrency((i.qty || 0) * (i.price || 0));
+      var qty = Number(i.qty || i.quantity) || 0;
+      return "• " + i.name + " ×" + qty + " = " + formatCurrency(qty * (i.price || 0));
     }).join("\n");
     var msg =
       "Halo Admin Warung Sayur Diky,\n\n" +
@@ -325,5 +384,6 @@
   filterMonth.addEventListener("change", renderList);
 
   // --- Init ---
+  if (!requireLogin()) return;
   renderList();
 })();

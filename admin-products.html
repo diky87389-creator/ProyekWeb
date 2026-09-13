@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+    <script src="admin-gate.js"></script>
+    <title>Kelola Produk - Warung Sayur Diky</title>
+    <link rel="stylesheet" href="admin-products.css">
+</head>
+
+<body>
+    <header class="topbar">
+        <div class="bar-inner"><a class="brand" href="admin-dashboard.html">Warung Sayur Diky <span>Admin</span></a><a
+                class="button light" href="admin-dashboard.html">← Dashboard</a></div>
+    </header>
+    <main class="container">
+        <section class="heading">
+            <div>
+                <p class="eyebrow">Katalog toko</p>
+                <h1>Produk & Stok</h1>
+                <p class="muted">Kelola nama, harga, stok, dan gambar produk.</p>
+            </div><button class="button primary" id="new-product" type="button">＋ Produk Baru</button>
+        </section>
+        <section id="product-list" class="product-list" aria-live="polite"></section>
+    </main>
+    <dialog id="product-dialog">
+        <form id="product-form" method="dialog">
+            <div class="dialog-head">
+                <h2 id="form-title">Produk Baru</h2><button class="close" id="cancel-product" type="button">×</button>
+            </div>
+            <div class="form-body"><label>ID produk<input id="product-id" required pattern="[a-z0-9-]+"
+                        placeholder="contoh: tomat-cherry"></label><label>Nama produk<input id="product-name" required
+                        maxlength="80"></label><label>Deskripsi<textarea id="product-description"
+                        maxlength="240"></textarea></label><fieldset class="units-fieldset"><legend>Pilihan satuan dan harga</legend><div id="unit-options" class="unit-options"><label><input type="checkbox" name="product-unit" value="per kg"> per kg</label><label><input type="checkbox" name="product-unit" value="per ons"> per ons</label><label><input type="checkbox" name="product-unit" value="per ikat"> per ikat</label><label><input type="checkbox" name="product-unit" value="per bungkus / per pack"> per bungkus / per pack</label><label><input type="checkbox" name="product-unit" value="per buah / pcs"> per buah / pcs</label><label><input type="checkbox" name="product-unit" value="per lembar"> per lembar</label><label><input type="checkbox" name="product-unit" value="per papan"> per papan</label></div><div id="unit-price-fields" class="unit-price-fields"></div></fieldset><label>Stok<input id="product-stock" required type="number" min="0"
+                        step="1"></label><label>Gambar produk<input id="product-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>Ukuran gambar maksimal 5 MB.</small></label>
+                <p id="form-error" class="error" role="alert"></p><button class="button primary full"
+                    type="submit">Simpan Produk</button>
+            </div>
+        </form>
+    </dialog>
+    <script src="admin-products.js" defer></script>
+</body>
+
+</html>
