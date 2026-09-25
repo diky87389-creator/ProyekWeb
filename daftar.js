@@ -577,8 +577,14 @@ function recordUsedIdentity(phoneNumber, emailAddress) {
 
 function buildActiveIdentity(user) {
   if (!user) return null;
-  const userPhone = user.phoneNumber ? normalizePhone(user.phoneNumber) : (user.whatsappNumber ? normalizePhone(user.whatsappNumber) : null);
-  const userEmail = user.emailAddress ? String(user.emailAddress).trim().toLowerCase() : null;
+  // Menerima alias field lama maupun baru: phone/phoneNumber/whatsappNumber
+  // dan email/emailAddress. Tanpa ini, akun lama yang menyimpan email di field
+  // "email" (bukan "emailAddress") lolos dari deteksi duplikasi email.
+  const userPhone = user.phoneNumber ? normalizePhone(user.phoneNumber)
+    : (user.phone ? normalizePhone(user.phone)
+    : (user.whatsappNumber ? normalizePhone(user.whatsappNumber) : null));
+  const userEmail = user.emailAddress ? String(user.emailAddress).trim().toLowerCase()
+    : (user.email ? String(user.email).trim().toLowerCase() : null);
   const fallback = user.contactInfo ? String(user.contactInfo).trim() : '';
   const fallbackPhone = /^[0-9]+$/.test(fallback) ? normalizePhone(fallback) : null;
   const fallbackEmail = isValidEmail(fallback) ? fallback.toLowerCase() : null;
@@ -799,11 +805,54 @@ function handleRegister(event) {
   }, 1800);
 }
 
+// Migrasi jejak identitas: pastikan email & nomor telepon yang ada di arsip
+// admin (dikyOrders_* / dikyHutang_) juga tercatat di dikyUsedIdentities
+// (penyimpanan permanen). Ini menutup celah bila pendaftaran terdahulu
+// mencatat identitas ke arsip tapi belum ke jejak permanen, sehingga email
+// tetap terdeteksi pada pendaftaran ulang walau akun sudah dihapus via
+// Logout Bersih Total.
+function migrateArchivedIdentitiesToUsed() {
+  try {
+    const archived = readArchivedIdentities();
+    if (!Array.isArray(archived) || !archived.length) return;
+    const existing = readUsedIdentities();
+    let changed = false;
+    archived.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const phone = entry.phone ? normalizePhone(entry.phone) : '';
+      const email = entry.email ? String(entry.email).trim().toLowerCase() : '';
+      if (!phone && !email) return;
+      let matched = false;
+      existing.forEach((record) => {
+        if (!record || typeof record !== 'object') return;
+        const recordPhone = record.phone ? normalizePhone(record.phone) : '';
+        const recordEmail = record.email ? String(record.email).trim().toLowerCase() : '';
+        const samePhone = phone && recordPhone === phone;
+        const sameEmail = email && recordEmail === email;
+        if (!samePhone && !sameEmail) return;
+        matched = true;
+        if (phone && !recordPhone) record.phone = phone;
+        if (email && !recordEmail) record.email = email;
+      });
+      if (!matched) {
+        existing.push({ phone: phone || null, email: email || null, usedAt: new Date().toISOString() });
+        changed = true;
+      } else {
+        changed = true;
+      }
+    });
+    if (changed) localStorage.setItem(usedIdentitiesKey, JSON.stringify(existing));
+  } catch (error) {
+    console.warn('Migrasi jejak identitas dari arsip gagal.', error);
+  }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   redirectIfLoggedIn();
   prefillFromPendingProfile();
   initializeMap();
   updateGeneratedUsername();
+  migrateArchivedIdentitiesToUsed();
 
   const fullNameField = document.getElementById('full-name');
   if (fullNameField) fullNameField.addEventListener('input', updateGeneratedUsername);
