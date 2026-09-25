@@ -443,34 +443,11 @@
   }
 
   function decrementStockForOrder(orderData) {
-    // Penanda ini membuat refresh/klik berulang pada success tidak mengurangi
-    // stok dua kali untuk order yang sama.
-    if (!orderData || orderData.stockDeducted === true) return orderData;
-    const items = Array.isArray(orderData.cart) ? orderData.cart : (Array.isArray(orderData.items) ? orderData.items : []);
-    if (!items.length) return orderData;
-    try {
-      const products = JSON.parse(localStorage.getItem('dikyProducts') || '[]');
-      if (!Array.isArray(products)) return orderData;
-      const quantities = {};
-      items.forEach(function (item) {
-        const id = item && String(item.id || '').trim();
-        const quantity = Math.max(0, Math.floor(Number(item && (item.quantity || item.qty)) || 0));
-        if (id && quantity > 0) quantities[id] = (quantities[id] || 0) + quantity;
-      });
-      if (!Object.keys(quantities).length) return orderData;
-      products.forEach(function (product) {
-        const id = product && String(product.id || '').trim();
-        if (!id || !quantities[id]) return;
-        const currentStock = Math.max(0, Math.floor(Number(product.stock) || 0));
-        product.stock = Math.max(0, currentStock - quantities[id]);
-      });
-      localStorage.setItem('dikyProducts', JSON.stringify(products));
-      window.dispatchEvent(new Event('products-updated'));
-      return Object.assign({}, orderData, { stockDeducted: true });
-    } catch (error) {
-      console.error('Gagal mengurangi stok produk:', error);
-      return orderData;
-    }
+    // LOGIKA LAMA DIHAPUS: ketersediaan produk kini dikontrol MANUAL oleh admin
+    // lewat tombol status di admin-products.html, bukan lagi otomatis dari angka
+    // stok. Fungsi ini sengaja tidak lagi mengubah stok apa pun dan hanya
+    // meneruskan data order apa adanya (dipertahankan untuk kompatibilitas).
+    return orderData;
   }
 
   function resolveProductImage(item) {
@@ -570,7 +547,6 @@
   function pindahkanKeRiwayatPesanan() {
     let activeOrder = getPesananAktif();
     if (activeOrder) {
-      activeOrder = decrementStockForOrder(activeOrder);
       const userRiwayatKey = getUserStorageKey('riwayatPesanan');
       if (!userRiwayatKey) return;
       let riwayat = [];

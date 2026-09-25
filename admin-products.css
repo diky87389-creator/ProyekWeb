@@ -187,10 +187,40 @@ h2 {
     color: var(--primary)
 }
 
+.status-badge {
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 700
+}
+
+.status-badge.status-tersedia {
+    color: #176337;
+    background: #e3f5e8;
+    border: 1px solid #b9dcc2
+}
+
+.status-badge.status-habis {
+    color: #b42318;
+    background: #fdecea;
+    border: 1px solid #efb5ae
+}
+
+.toggle-deactivate {
+    color: #b42318;
+    border-color: #efb5ae
+}
+
+.toggle-activate {
+    color: #176337;
+    border-color: #b9dcc2
+}
+
 .card-actions {
     display: flex;
     gap: .55rem;
-    margin-top: 1rem
+    margin-top: 1rem;
+    flex-wrap: wrap
 }
 
 .action {

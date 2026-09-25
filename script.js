@@ -141,6 +141,13 @@ function addToCart(productId) {
     return;
   }
 
+  // Status ketersediaan dikontrol manual oleh admin di admin-products.html.
+  // Produk berstatus 'habis' tidak boleh masuk keranjang.
+  if (isProductHabis(product)) {
+    showToast('Stok produk sedang habis.');
+    return;
+  }
+
   // Use default unit (index 0)
   const defaultUnitIndex = 0;
   const selectedUnit = product.units[defaultUnitIndex];
@@ -148,16 +155,7 @@ function addToCart(productId) {
   const cartItemId = `${productId}-${defaultUnitIndex}`;
 
   const existingItem = cart.find((item) => item.cartItemId === cartItemId);
-  const stock = Number(product.stock);
-  if (Number.isFinite(stock) && stock <= 0) {
-    showToast('Stok produk sedang habis.');
-    return;
-  }
   if (existingItem) {
-    if (Number.isFinite(stock) && existingItem.quantity >= stock) {
-      showToast('Jumlah melebihi stok tersedia.');
-      return;
-    }
     existingItem.quantity += 1;
   } else {
     cart.push({
@@ -174,6 +172,12 @@ function addToCart(productId) {
 
   saveCart(cart);
   showToast(`${product.name} ditambahkan ke keranjang.`);
+}
+
+function isProductHabis(product) {
+  // Ketersediaan HANYA ditentukan oleh status manual admin ('habis'),
+  // tidak lagi dari angka stok.
+  return String(product && product.status || '').trim().toLowerCase() === 'habis';
 }
 
 function createProductCard(product) {
@@ -208,10 +212,10 @@ function createProductCard(product) {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.productId = product.id;
-  const stock = Math.max(0, Math.floor(Number(product.stock) || 0));
-  button.disabled = stock <= 0;
-  button.textContent = stock <= 0 ? 'Stok Habis' : 'Tambah ke Keranjang';
-  button.setAttribute('aria-label', stock <= 0 ? `${product.name} - Stok Habis` : `Tambah ${product.name} ke keranjang`);
+  const habis = isProductHabis(product);
+  button.disabled = habis;
+  button.textContent = habis ? 'Stok Habis' : 'Tambah ke Keranjang';
+  button.setAttribute('aria-label', habis ? `${product.name} - Stok Habis` : `Tambah ${product.name} ke keranjang`);
   button.addEventListener('click', () => addToCart(product.id));
 
   productActions.append(button);

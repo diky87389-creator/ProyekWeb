@@ -88,6 +88,41 @@
     return (name || "?").trim().split(/\s+/).map(function (w) { return w[0]; }).join("").slice(0, 2).toUpperCase();
   }
 
+  // Foto profil users: prioritaskan foto yang tersimpan di catatan hutang, lalu
+  // dari akun user yang sedang login. Jika user memang tidak memasang foto saat
+  // Daftar Akun, barulah ditampilkan nama singkat / inisial.
+  function resolveCustomerImage(debt) {
+    if (debt && typeof debt.profileImage === 'string' && debt.profileImage) return debt.profileImage;
+    if (debt && typeof debt.avatarUrl === 'string' && debt.avatarUrl) return debt.avatarUrl;
+    var activeUser = typeof getActiveUser === 'function' ? getActiveUser() : null;
+    if (activeUser) {
+      if (typeof activeUser.profileImage === 'string' && activeUser.profileImage) return activeUser.profileImage;
+      if (typeof activeUser.avatarUrl === 'string' && activeUser.avatarUrl) return activeUser.avatarUrl;
+    }
+    return '';
+  }
+
+  function customerAvatarMarkup(debt) {
+    var image = resolveCustomerImage(debt);
+    if (image) {
+      return '<div class="debt-avatar debt-avatar-photo"><img src="' + escapeHtml(image) + '" alt="Foto profil ' + escapeHtml(debt && debt.customerName || 'pelanggan') + '"></div>';
+    }
+    return '<div class="debt-avatar">' + getInitials(debt && debt.customerName) + '</div>';
+  }
+
+  // Ongkir bukan produk: jangan tampilkan gambar produk untuk item ongkir.
+  function isShippingItem(item) {
+    if (!item) return false;
+    if (item.isShipping === true || item.shipping === true) return true;
+    return String(item.name || '').trim().toLowerCase() === 'ongkir';
+  }
+
+  function itemImageMarkup(item) {
+    if (isShippingItem(item)) return '';
+    var image = typeof resolveProductImage === 'function' ? resolveProductImage(item) : (item.image || 'images/Toko Sayur Online.png');
+    return '<img class="debt-item-image" src="' + escapeHtml(image) + '" alt="' + escapeHtml(item.name) + '">';
+  }
+
   function escapeHtml(s) {
     var d = document.createElement("div");
     d.textContent = s || "";
@@ -157,10 +192,7 @@
     debtList.innerHTML = filtered.map(function (d) {
       var total = Number(d.totalAmount) || calcTotal(d);
       var itemsText = (d.items || []).map(function (i) { return i.name + " ×" + (i.qty || i.quantity || 0); }).join(", ");
-      var itemsImages = (d.items || []).map(function (i) {
-        var image = typeof resolveProductImage === 'function' ? resolveProductImage(i) : (i.image || 'images/Toko Sayur Online.png');
-        return '<img class="debt-item-image" src="' + escapeHtml(image) + '" alt="' + escapeHtml(i.name) + '">';
-      }).join('');
+      var itemsImages = (d.items || []).map(function (i) { return itemImageMarkup(i); }).join('');
       var payInfoBtn = d.status === "belum"
         ? '<button class="action-btn action-pay" data-action="pay" data-id="' + d.id + '">💳 Cara Bayar</button>'
         : "";
@@ -172,7 +204,7 @@
         '<article class="debt-card ' + (d.status === "lunas" ? "is-paid" : "") + '" data-id="' + d.id + '">' +
         '<div class="debt-top">' +
         '<div class="debt-customer">' +
-        '<div class="debt-avatar">' + getInitials(d.customerName) + "</div>" +
+        customerAvatarMarkup(d) +
         "<div>" +
         '<p class="debt-name">' + escapeHtml(d.customerName) + "</p>" +
         '<p class="debt-sub">Username: ' + escapeHtml(d.username || username) + '</p>' +
@@ -261,10 +293,10 @@
     var total = Number(debt.totalAmount) || calcTotal(debt);
     var itemsHtml = (debt.items || []).map(function (i) {
       var qty = Number(i.qty || i.quantity) || 0;
-      var image = typeof resolveProductImage === 'function' ? resolveProductImage(i) : (i.image || 'images/Toko Sayur Online.png');
+      var imageMarkup = isShippingItem(i) ? '' : '<img class="receipt-item-image" src="' + escapeHtml(typeof resolveProductImage === 'function' ? resolveProductImage(i) : (i.image || 'images/Toko Sayur Online.png')) + '" alt="' + escapeHtml(i.name) + '"> ';
       return (
         '<div class="receipt-item">' +
-        '<span><img class="receipt-item-image" src="' + escapeHtml(image) + '" alt="' + escapeHtml(i.name) + '"> ' + escapeHtml(i.name) + " ×" + qty + "</span>" +
+        '<span>' + imageMarkup + escapeHtml(i.name) + " ×" + qty + "</span>" +
         "<span>" + formatCurrency(qty * (i.price || 0)) + "</span>" +
         "</div>"
       );
@@ -327,7 +359,7 @@
 
     detailContent.innerHTML =
       '<div class="detail-header">' +
-      '<div class="debt-avatar">' + getInitials(debt.customerName) + "</div>" +
+      customerAvatarMarkup(debt) +
       "<div>" +
       '<h3 style="margin:0">' + escapeHtml(debt.customerName) + "</h3>" +
       '<p style="margin:0;color:var(--muted)">' + (debt.phone ? escapeHtml(debt.phone) : "No. telp tidak tersedia") + "</p>" +

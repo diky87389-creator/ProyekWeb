@@ -3,6 +3,10 @@ const toast = document.getElementById('register-toast');
 const usersKey = 'dikyRegisteredUsers';
 const activeUserKey = 'dikyActiveUser';
 const pendingGoogleKey = 'dikyPendingGoogleProfile';
+// Jejak identitas permanen: mencatat email & nomor telepon yang pernah dipakai
+// mendaftar. Key ini TIDAK ikut terhapus saat Logout Bersih Total maupun saat
+// data pesanan/hutang dibersihkan, sehingga identitas tetap terkunci permanen.
+const usedIdentitiesKey = 'dikyUsedIdentities';
 const fotoProfilInput = document.getElementById('fotoProfil');
 const fotoProfilPreview = document.getElementById('fotoProfilPreview');
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -471,25 +475,180 @@ function isValidEmail(email) {
   return emailPattern.test(email);
 }
 
-function isDuplicateUser(phoneNumber, emailAddress) {
-  const users = getRegisteredUsers();
+function readArchivedIdentities() {
+  // Panel admin menyimpan arsip operasional (dikyOrders_* & dikyHutang_*) yang
+  // TETAP ADA walau user melakukan "Logout Bersih Total". Arsip ini dipakai
+  // sebagai jejak identitas agar email / nomor telepon yang pernah dipakai
+  // tidak bisa dipakai ulang untuk mendaftar akun baru.
+  const identities = [];
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const storageKey = localStorage.key(i);
+      if (!storageKey) continue;
+      const isOrderArchive = storageKey.indexOf('dikyOrders_') === 0;
+      const isDebtArchive = storageKey.indexOf('dikyHutang_') === 0;
+      if (!isOrderArchive && !isDebtArchive) continue;
+      let records;
+      try { records = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch (error) { continue; }
+      const list = Array.isArray(records) ? records : (records && typeof records === 'object' ? [records] : []);
+      list.forEach((record) => {
+        if (!record || typeof record !== 'object') return;
+        const customer = record.customer && typeof record.customer === 'object' ? record.customer : {};
+        const phone = record.phone || record.phoneNumber || customer.phone || customer.phoneNumber || null;
+        const email = record.email || record.emailAddress || customer.email || customer.emailAddress || null;
+        // Lewati entri yang benar-benar tidak punya identitas apa pun.
+        const hasPhone = phone && normalizePhone(phone);
+        const hasEmail = email && String(email).trim();
+        if (!hasPhone && !hasEmail) return;
+        identities.push({ id: record.userId || null, phone: phone, email: email });
+      });
+    }
+  } catch (error) {
+    console.warn('Arsip identitas admin tidak dapat dibaca sepenuhnya.', error);
+  }
+  return identities;
+}
+
+function readUsedIdentities() {
+  // Baca daftar identitas permanen yang pernah dipakai mendaftar.
+  // Menerima alias field (email/emailAddress, phone/phoneNumber) agar data
+  // format lama maupun baru sama-sama terbaca. Hanya entri VALID (punya email
+  // dan/atau nomor telepon tidak kosong) yang dikembalikan.
+  try {
+    const raw = localStorage.getItem(usedIdentitiesKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const normalized = [];
+    parsed.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const rawPhone = entry.phone || entry.phoneNumber || entry.whatsappNumber || '';
+      const rawEmail = entry.email || entry.emailAddress || '';
+      const phone = rawPhone ? normalizePhone(rawPhone) : '';
+      const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
+      if (!phone && !email) return;
+      normalized.push({ phone: phone || null, email: email || null });
+    });
+    return normalized;
+  } catch (error) {
+    console.warn('Jejak identitas permanen tidak dapat dibaca.', error);
+    return [];
+  }
+}
+
+function recordUsedIdentity(phoneNumber, emailAddress) {
+  // Simpan email & nomor telepon ke jejak permanen.
+  // PENTING: fungsi ini MELENGKAPI entri yang sudah ada, bukan berhenti begitu
+  // ada satu kecocokan. Jika nomor telepon sudah tercatat tetapi emailnya belum
+  // (atau sebaliknya), field yang masih kosong akan diisi. Dengan begitu kedua
+  // data selalu terkunci dan bisa dideteksi pada pendaftaran berikutnya.
   const normalizedPhone = normalizePhone(phoneNumber);
-  const normalizedEmail = emailAddress.toLowerCase();
+  const normalizedEmail = String(emailAddress == null ? '' : emailAddress).trim().toLowerCase();
+  if (!normalizedPhone && !normalizedEmail) return;
+  try {
+    const identities = readUsedIdentities();
+    let matched = false;
 
-  return users.some((user) => {
-    const userPhone = user.phoneNumber ? normalizePhone(user.phoneNumber) : (user.whatsappNumber ? normalizePhone(user.whatsappNumber) : null);
-    const userEmail = user.emailAddress ? user.emailAddress.toLowerCase() : null;
-    const fallback = user.contactInfo ? user.contactInfo.trim() : '';
-    const fallbackPhone = /^[0-9]+$/.test(fallback) ? normalizePhone(fallback) : null;
-    const fallbackEmail = isValidEmail(fallback) ? fallback.toLowerCase() : null;
+    identities.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const entryPhone = entry.phone ? normalizePhone(entry.phone) : '';
+      const entryEmail = entry.email ? String(entry.email).trim().toLowerCase() : '';
+      const samePhone = normalizedPhone && entryPhone === normalizedPhone;
+      const sameEmail = normalizedEmail && entryEmail === normalizedEmail;
+      if (!samePhone && !sameEmail) return;
+      matched = true;
+      // Lengkapi field yang masih kosong pada entri yang cocok.
+      if (normalizedPhone && !entryPhone) entry.phone = normalizedPhone;
+      if (normalizedEmail && !entryEmail) entry.email = normalizedEmail;
+    });
 
-    return (
-      (userPhone && userPhone === normalizedPhone) ||
-      (userEmail && userEmail === normalizedEmail) ||
-      (fallbackPhone && fallbackPhone === normalizedPhone) ||
-      (fallbackEmail && fallbackEmail === normalizedEmail)
-    );
-  });
+    if (!matched) {
+      identities.push({
+        phone: normalizedPhone || null,
+        email: normalizedEmail || null,
+        usedAt: new Date().toISOString()
+      });
+    }
+
+    localStorage.setItem(usedIdentitiesKey, JSON.stringify(identities));
+  } catch (error) {
+    console.warn('Jejak identitas permanen tidak dapat disimpan.', error);
+  }
+}
+
+function buildActiveIdentity(user) {
+  if (!user) return null;
+  const userPhone = user.phoneNumber ? normalizePhone(user.phoneNumber) : (user.whatsappNumber ? normalizePhone(user.whatsappNumber) : null);
+  const userEmail = user.emailAddress ? String(user.emailAddress).trim().toLowerCase() : null;
+  const fallback = user.contactInfo ? String(user.contactInfo).trim() : '';
+  const fallbackPhone = /^[0-9]+$/.test(fallback) ? normalizePhone(fallback) : null;
+  const fallbackEmail = isValidEmail(fallback) ? fallback.toLowerCase() : null;
+  return {
+    phone: userPhone || fallbackPhone || null,
+    email: userEmail || fallbackEmail || null
+  };
+}
+
+/**
+ * Mendeteksi duplikasi Email dan Nomor Telepon SECARA TERPISAH.
+ * Cukup salah satu yang cocok (email saja ATAU nomor telepon saja) dianggap duplikat.
+ * Sumber pengecekan (tanpa pandang bulu — berlaku untuk semua status akun):
+ *  1. Akun yang masih terdaftar (dikyRegisteredUsers).
+ *  2. Sesi yang sedang aktif (dikyActiveUser).
+ *  3. Jejak identitas pada arsip admin (dikyOrders_* / dikyHutang_*).
+ *  4. Jejak identitas permanen (dikyUsedIdentities).
+ * CATATAN: dikyPendingGoogleProfile SENGAJA TIDAK dibaca di sini. Key tersebut
+ * hanya dipakai alur "Masuk dengan Google" dan tidak boleh memicu blokir
+ * pendaftaran manual di halaman daftar.html.
+ * @returns {{ duplicate: boolean, email: boolean, phone: boolean }}
+ */
+function findDuplicateIdentity(phoneNumber, emailAddress) {
+  const normalizedPhone = normalizePhone(phoneNumber);
+  const normalizedEmail = String(emailAddress == null ? '' : emailAddress).trim().toLowerCase();
+  const result = { duplicate: false, email: false, phone: false };
+
+  // Diperiksa TERPISAH dan AKUMULATIF: satu entri bisa menandai email saja,
+  // telepon saja, atau keduanya. Tidak ada early-return yang menghentikan
+  // pengecekan field lain.
+  const checkEntry = function (entry) {
+    if (!entry || typeof entry !== 'object') return;
+    // Terima alias field agar data arsip/jejak format apa pun tetap terbaca.
+    const rawPhone = entry.phone || entry.phoneNumber || entry.whatsappNumber || '';
+    const rawEmail = entry.email || entry.emailAddress || '';
+    const entryPhone = rawPhone ? normalizePhone(rawPhone) : '';
+    const entryEmail = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
+    if (entryPhone && normalizedPhone && entryPhone === normalizedPhone) result.phone = true;
+    if (entryEmail && normalizedEmail && entryEmail === normalizedEmail) result.email = true;
+  };
+
+  // 1) Akun yang masih terdaftar.
+  const activeUsers = getRegisteredUsers();
+  if (Array.isArray(activeUsers)) activeUsers.forEach((user) => checkEntry(buildActiveIdentity(user)));
+
+  // 2) Sesi yang sedang aktif (jaring pengaman bila akun belum/tidak tersinkron).
+  try {
+    const activeUser = JSON.parse(localStorage.getItem(activeUserKey) || 'null');
+    if (activeUser && typeof activeUser === 'object') checkEntry(buildActiveIdentity(activeUser));
+  } catch (error) { /* abaikan; sumber lain tetap menutup */ }
+
+  // 3) Jejak identitas pada arsip admin (bertahan setelah Logout Bersih Total).
+  const archivedIdentities = readArchivedIdentities();
+  if (Array.isArray(archivedIdentities)) archivedIdentities.forEach((entry) => checkEntry(entry));
+
+  // 4) Jejak identitas permanen (dikyUsedIdentities) — terkunci selamanya,
+  //    termasuk untuk akun yang langsung Logout Cepat / Logout Bersih Total
+  //    tanpa transaksi, atau sesi yang habis karena 15 menit tidak aktif.
+  const usedIdentities = readUsedIdentities();
+  if (Array.isArray(usedIdentities)) usedIdentities.forEach((entry) => checkEntry(entry));
+
+  // Catatan: dikyPendingGoogleProfile TIDAK dijadikan sumber pengecekan.
+
+  result.duplicate = result.email || result.phone;
+  return result;
+}
+
+function isDuplicateUser(phoneNumber, emailAddress) {
+  // True bila email ATAU nomor telepon sudah pernah terdaftar (salah satu saja).
+  return findDuplicateIdentity(phoneNumber, emailAddress).duplicate;
 }
 
 function handleRegister(event) {
@@ -517,7 +676,6 @@ function handleRegister(event) {
   const checks = [
     { condition: !fullName, element: fullNameField, button: null, message: 'Nama Lengkap wajib diisi.' },
     { condition: !username, element: usernameField, button: null, message: 'Username wajib diisi.' },
-    { condition: !(profileImageBase64 && profileImageBase64.trim()), element: fotoProfilInput, button: null, message: 'Foto Profil wajib diunggah.' },
     { condition: !phoneNumber || !isValidPhoneNumber(phoneNumber), element: document.getElementById('phone-number'), button: null, message: 'Masukkan nomor telepon yang valid.' },
     { condition: !emailAddress || !isValidEmail(emailAddress), element: document.getElementById('email-address'), button: null, message: 'Masukkan alamat email yang valid.' },
     { condition: !gpsLocationReady || !locationAddress || !latitude || !longitude, element: addressField, button: detectLocationButton, message: 'Alamat wajib diisi melalui tombol Gunakan Lokasi Terkini Saya.' },
@@ -537,6 +695,38 @@ function handleRegister(event) {
       focusFirstInvalid(invalidCheck.element, invalidCheck.button);
     }
     showToast(invalidCheck.message);
+    return;
+  }
+
+  // Validasi Duplikasi (Anti-Pendaftaran Ganda)
+  // Email dan Nomor Telepon diperiksa TERPISAH dan SEKALIGUS. Hasilnya bisa:
+  //   - hanya email yang duplikat   → peringatan email
+  //   - hanya telepon yang duplikat → peringatan telepon
+  //   - keduanya duplikat           → peringatan gabungan + kedua kolom ditandai
+  // Dijalankan SEBELUM membuat ID user baru & SEBELUM menyimpan apa pun.
+  const duplicateCheck = findDuplicateIdentity(phoneNumber, emailAddress);
+  if (duplicateCheck.duplicate) {
+    const emailField = document.getElementById('email-address');
+    const phoneField = document.getElementById('phone-number');
+
+    // Tandai kolom yang bermasalah (bisa keduanya sekaligus).
+    if (duplicateCheck.email) applyInvalidState(emailField, null);
+    if (duplicateCheck.phone) applyInvalidState(phoneField, null);
+
+    let duplicateMessage;
+    if (duplicateCheck.email && duplicateCheck.phone) {
+      duplicateMessage = 'Email dan Nomor Telepon ini sudah terdaftar. Silakan gunakan menu Login untuk masuk ke akun Anda, atau gunakan email & nomor lain.';
+    } else if (duplicateCheck.email) {
+      duplicateMessage = 'Email ini sudah terdaftar. Silakan gunakan menu Login untuk masuk ke akun Anda, atau gunakan email lain.';
+    } else {
+      duplicateMessage = 'Nomor Telepon ini sudah terdaftar. Silakan gunakan menu Login untuk masuk ke akun Anda, atau gunakan nomor lain.';
+    }
+
+    // Fokuskan kursor ke kolom bermasalah pertama (email didahulukan bila keduanya).
+    const firstInvalidField = duplicateCheck.email ? emailField : phoneField;
+    focusFirstInvalid(firstInvalidField, null);
+
+    showToast(duplicateMessage);
     return;
   }
 
@@ -581,6 +771,9 @@ function handleRegister(event) {
 
   users.push(newUser);
   saveRegisteredUsers(users);
+  // Catat identitas ke jejak permanen agar email & nomor telepon ini terkunci
+  // selamanya, bahkan bila akun langsung dihapus via Logout Bersih Total.
+  recordUsedIdentity(newUser.phoneNumber, newUser.emailAddress);
   syncUserAddressRecord(newUser.address, newUser.latitude, newUser.longitude);
   saveActiveUser({
     id: newUser.id,

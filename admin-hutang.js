@@ -18,6 +18,8 @@
     return result;
   }
   function readArray(storageKey) { try { var data = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(data) ? data : []; } catch (e) { return []; } }
+  function buildInitials(name) { var words = String(name || '').trim().split(/[\s@._-]+/).filter(Boolean); return (words.slice(0, 2).map(function (word) { return word.charAt(0); }).join('') || 'WS').toUpperCase(); }
+  function avatarMarkup(identity) { return identity.profileImage ? '<img class="customer-avatar" width="44" height="44" src="' + esc(identity.profileImage) + '" alt="Foto profil ' + esc(identity.username) + '" loading="lazy" style="width:44px;height:44px;max-width:44px;max-height:44px;object-fit:cover;border-radius:50%;display:block;">' : '<span class="customer-avatar customer-avatar-initials" aria-label="Inisial ' + esc(identity.username) + '">' + esc(identity.initials) + '</span>'; }
   function resolveIdentity(debt) {
     var storageKey = debt && debt.__storageKey ? String(debt.__storageKey) : '';
     var userId = storageKey.indexOf('dikyHutang_') === 0 ? storageKey.slice(11) : '';
@@ -28,8 +30,9 @@
         var values = candidate ? [candidate.id, candidate.email, candidate.emailAddress, candidate.phone, candidate.phoneNumber, candidate.whatsappNumber].filter(Boolean).map(String) : [];
         return (userId && values.indexOf(userId) !== -1) || identifiers.some(function (value) { return values.indexOf(value) !== -1; });
       }) : null;
-      return { username: debt.username || (user && user.username) || '-', profileImage: debt.profileImage || debt.avatarUrl || (user && (user.profileImage || user.avatarUrl)) || 'images/Toko Sayur Online.png' };
-    } catch (error) { return { username: debt.username || '-', profileImage: 'images/Toko Sayur Online.png' }; }
+      var fullName = debt.fullName || debt.customerName || (user && user.fullName) || '';
+      return { username: debt.username || (user && user.username) || '-', initials: buildInitials(fullName), profileImage: debt.profileImage || debt.avatarUrl || (user && (user.profileImage || user.avatarUrl)) || null };
+    } catch (error) { return { username: debt.username || '-', initials: buildInitials(debt.fullName || debt.customerName), profileImage: null }; }
   }
   function resolveImage(item) {
     var fallback = 'images/Toko Sayur Online.png';
@@ -39,6 +42,13 @@
       if (product && product.image) return product.image;
     } catch (e) {}
     return item && item.image ? item.image : fallback;
+  }
+  function itemImageMarkup(item) {
+    var name = String(item && item.name || '').trim().toLowerCase();
+    var isShipping = (item && (item.isShipping === true || item.shipping === true)) || name === 'ongkir';
+    // Ongkir bukan produk: tidak ditampilkan dengan gambar sama sekali.
+    var imageMarkup = isShipping ? '' : '<img src="' + esc(resolveImage(item)) + '" alt="' + esc(item && item.name || 'Produk') + '">';
+    return '<div class="item">' + imageMarkup + '<div class="item-info"><p class="item-name">' + esc(item && item.name || 'Produk') + '</p><p class="item-meta">' + esc(item && (item.qty || item.quantity) || 0) + ' × ' + money(item && item.price) + '</p></div></div>';
   }
   function number(value) { var n = Number(value); return Number.isFinite(n) && n >= 0 ? n : 0; }
   function status(value) { return statuses.indexOf(value) >= 0 ? value : 'belum'; }
@@ -70,7 +80,7 @@
     if (!visible.length) { list.innerHTML = '<div class="empty">Belum ada catatan kasbon yang sesuai.</div>'; return; }
     list.innerHTML = visible.map(function (debt) {
       var debtItems = items(debt); var identity = resolveIdentity(debt); var ownerId = debt.userId || (debt.__storageKey ? String(debt.__storageKey).replace(/^dikyHutang_/, '') : 'tidak diketahui');
-      return '<article class="debt-card" data-owner-id="' + esc(ownerId) + '"><div class="debt-top"><div><p class="debt-id">' + esc(debt.id || 'Tanpa ID') + '</p><img class="customer-avatar" width="44" height="44" src="' + esc(identity.profileImage) + '" alt="Foto profil ' + esc(identity.username) + '" loading="lazy" style="width:44px;height:44px;max-width:44px;max-height:44px;object-fit:cover;border-radius:50%;display:block;"><p class="debt-name">' + esc(debt.customerName || 'Pelanggan') + '</p><p class="debt-meta">Akun: @' + esc(identity.username) + ' · ID: ' + esc(ownerId) + '</p><p class="debt-meta">Order: ' + esc(debt.orderId || '-') + ' · ' + esc(debt.date || debt.createdAt || '-') + '</p></div><select class="status-select" data-status-id="' + esc(debt.id) + '" aria-label="Status kasbon"><option value="belum"' + (status(debt.status) === 'belum' ? ' selected' : '') + '>Belum Lunas</option><option value="lunas"' + (status(debt.status) === 'lunas' ? ' selected' : '') + '>Lunas</option></select></div><div class="items">' + debtItems.map(function (item) { return '<div class="item"><img src="' + esc(resolveImage(item)) + '" alt="' + esc(item.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(item.name || 'Produk') + '</p><p class="item-meta">' + esc(item.qty || item.quantity || 0) + ' × ' + money(item.price) + '</p></div></div>'; }).join('') + '</div><div class="debt-bottom"><strong class="total">' + money(total(debt)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(debt.id) + '">Lihat Detail</button></div></div></article>';
+      return '<article class="debt-card" data-owner-id="' + esc(ownerId) + '"><div class="debt-top"><div><p class="debt-id">' + esc(debt.id || 'Tanpa ID') + '</p>' + avatarMarkup(identity) + '<p class="debt-name">' + esc(debt.customerName || 'Pelanggan') + '</p><p class="debt-meta">Akun: @' + esc(identity.username) + ' · ID: ' + esc(ownerId) + '</p><p class="debt-meta">Order: ' + esc(debt.orderId || '-') + ' · ' + esc(debt.date || debt.createdAt || '-') + '</p></div><select class="status-select" data-status-id="' + esc(debt.id) + '" aria-label="Status kasbon"><option value="belum"' + (status(debt.status) === 'belum' ? ' selected' : '') + '>Belum Lunas</option><option value="lunas"' + (status(debt.status) === 'lunas' ? ' selected' : '') + '>Lunas</option></select></div><div class="items">' + debtItems.map(function (item) { return itemImageMarkup(item); }).join('') + '</div><div class="debt-bottom"><strong class="total">' + money(total(debt)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(debt.id) + '">Lihat Detail</button></div></div></article>';
     }).join('');
   }
   function showDetail(id) {

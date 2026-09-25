@@ -145,18 +145,64 @@ function readStoredRecords(key) {
 
 function hasActiveOrdersBeforeLogout() {
   const finishedStatuses = new Set(['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan', 'completed', 'cancelled']);
-  const keys = [
+
+  const isUnfinished = (order) => {
+    if (!order || typeof order !== 'object') return false;
+    const status = String(order.status || 'menunggu').trim().toLowerCase();
+    return !finishedStatuses.has(status);
+  };
+
+  // 1) Pesanan yang masih "menggantung" di success.html: sudah di-checkout tetapi
+  //    BELUM ditekan "Lihat Riwayat Pesanan". Ini yang benar-benar perlu diblokir.
+  const pendingKeys = [
     getUserStorageKey('pesananAktif'),
-    getUserStorageKey('pesananBaru'),
-    getUserStorageKey('lastOrder'),
+    getUserStorageKey('lastOrder')
+  ].filter(Boolean);
+  if (pendingKeys.some((key) => readStoredRecords(key).some(isUnfinished))) {
+    return true;
+  }
+
+  // 2) Pesanan yang SUDAH dipindah ke riwayat/arsip: hanya menghalangi bila
+  //    statusnya masih Dikemas / Dikirim / Silahkan Untuk Diambil (belum Selesai).
+  const historyKeys = [
     getUserStorageKey('riwayatPesanan'),
     getUserStorageKey('orders')
   ].filter(Boolean);
+  if (historyKeys.some((key) => readStoredRecords(key).some(isUnfinished))) {
+    return true;
+  }
 
-  return keys.some((key) => readStoredRecords(key).some((order) => {
-    const status = String(order.status || 'menunggu').trim().toLowerCase();
-    return !finishedStatuses.has(status);
-  }));
+  // 3) `pesananBaru` (snapshot keranjang/checkout) SENGAJA TIDAK diperiksa:
+  //    daftar pesanan yang masih di keranjang.html / checkout.html tidak
+  //    menghalangi Logout Bersih Total, sesuai aturan yang berlaku.
+  return false;
+}
+
+function deleteUserAccountRecord(userId) {
+  // Logout Bersih Total menghapus SELURUH data akun milik user ini dari daftar
+  // akun terdaftar: Nama Lengkap, Username, Foto Profil, Nomor Telepon, Email,
+  // Alamat (termasuk alamat otomatis GPS), Detail Alamat Lengkap, Kata Sandi,
+  // dan Konfirmasi Kata Sandi. Akun user sepenuhnya hilang seperti belum pernah
+  // mendaftar.
+  //
+  // PENGAMAN PENTING: akun admin / role 'admin' TIDAK PERNAH dihapus, baik akun
+  // default dari login.js maupun akun lain yang berperan admin.
+  if (!userId) return;
+  try {
+    const users = JSON.parse(localStorage.getItem('dikyRegisteredUsers') || '[]');
+    if (!Array.isArray(users)) return;
+    const remaining = users.filter((record) => {
+      if (!record || String(record.id || '') !== String(userId)) return true; // bukan user ini: simpan
+      const isAdmin = String(record.role || '').trim().toLowerCase() === 'admin';
+      return isAdmin; // akun admin selalu dipertahankan
+    });
+    if (remaining.length !== users.length) {
+      localStorage.setItem('dikyRegisteredUsers', JSON.stringify(remaining));
+      console.log('Logout Bersih Total: seluruh data akun user', userId, 'dihapus dari daftar akun.');
+    }
+  } catch (error) {
+    console.warn('Gagal menghapus data akun user.', error);
+  }
 }
 
 function logoutClean() {
@@ -200,10 +246,18 @@ function logoutClean() {
     }
   });
 
-  // Jangan mengubah dikyRegisteredUsers, dikyOrders_*, dikyHutang_*, atau katalog.
-  // Data tersebut dibaca panel admin sebagai arsip operasional dan tetap harus aman.
-  // Semua data alamat pribadi yang tersimpan pada sesi/form user sudah ikut dihapus
-  // melalui privateKeys di atas; alamat pada arsip admin sengaja dipertahankan.
+  // Hapus seluruh record akun user (Nama Lengkap, Username, Foto Profil, Nomor
+  // Telepon, Email, Alamat otomatis GPS, Detail Alamat Lengkap, Kata Sandi, dan
+  // Konfirmasi Kata Sandi) dari daftar akun terdaftar. Ini juga menghapus alamat
+  // yang terbaca/disinkron ke checkout.html, orders.html, keranjang.html, dan
+  // success.html karena semua halaman itu mengambil alamat dari field akun ini.
+  // Akun admin (role 'admin') tidak pernah dihapus.
+  deleteUserAccountRecord(userId);
+
+  // Jangan mengubah dikyOrders_* (arsip admin-orders.html) dan dikyHutang_
+  // (arsip admin-hutang.html & admin-dashboard.html), serta katalog produk
+  // (dikyProducts). Data tersebut dibaca panel admin sebagai arsip operasional
+  // dan HARUS tetap aman agar admin tidak kebingungan saat memproses pesanan.
 
   // Jangan gunakan localStorage.clear() atau wildcard penghapusan. Hapus hanya
   // pointer sesi milik user ini; jangan menyentuh data katalog/admin.

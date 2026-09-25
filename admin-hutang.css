@@ -251,6 +251,20 @@ select:focus {
     border-bottom: 1px solid var(--line);
 }
 
+.customer-avatar-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-top: .55rem;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--primary);
+    font-size: .85rem;
+    font-weight: 800;
+}
+
 .debt-id,
 .debt-name {
     margin: 0 0 .3rem;

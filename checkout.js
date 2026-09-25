@@ -341,10 +341,23 @@ function buildOrderData() {
   const activeUser = typeof getCurrentRegisteredUser === 'function' ? getCurrentRegisteredUser() : (typeof window.getActiveUser === 'function' ? window.getActiveUser() : null);
   const userLatitude = Number.isFinite(Number(activeUser && activeUser.latitude)) ? Number(activeUser.latitude) : null;
   const userLongitude = Number.isFinite(Number(activeUser && activeUser.longitude)) ? Number(activeUser.longitude) : null;
+  // Simpan identitas pemesan (username + foto profil) ke dalam arsip order. Dengan
+  // begitu panel admin tetap menampilkan foto/username asli walau user kemudian
+  // menghapus akunnya lewat Logout Bersih Total.
+  const userUsername = (activeUser && (activeUser.username || activeUser.userId)) || null;
+  const userProfileImage = (activeUser && (activeUser.profileImage || activeUser.avatarUrl)) || null;
+  const userFullName = (activeUser && (activeUser.fullName || activeUser.name)) || name;
+  // Simpan juga email pemesan ke arsip, agar jejak email ikut bertahan permanen
+  // (seperti nomor telepon) dan tetap terdeteksi pada validasi pendaftaran ulang.
+  const userEmail = (activeUser && activeUser.emailAddress) || null;
 
   return {
     id: `ORD-${Date.now()}`,
     userId: activeUser && activeUser.id ? String(activeUser.id) : null,
+    username: userUsername,
+    profileImage: userProfileImage,
+    fullName: userFullName,
+    emailAddress: userEmail,
     createdAt: new Date().toISOString(),
     cart,
     totalPrice: subtotal + shippingCost,
@@ -353,8 +366,11 @@ function buildOrderData() {
     customer: {
       name,
       phone,
+      emailAddress: userEmail,
       address,
       paymentMethod,
+      username: userUsername,
+      profileImage: userProfileImage,
       latitude: userLatitude,
       longitude: userLongitude
     }
@@ -496,7 +512,8 @@ function saveDebtFromCheckout(orderData) {
 
   const shippingCost = orderData.shippingCost || 0;
   if (shippingCost > 0) {
-    items.push({ name: 'Ongkir', qty: 1, price: shippingCost });
+    // Ongkir bukan produk: tidak boleh dirender sebagai gambar produk di hutang.html.
+    items.push({ name: 'Ongkir', qty: 1, price: shippingCost, isShipping: true });
   }
 
   const subtotal = cart.reduce(function (sum, item) {
@@ -504,12 +521,17 @@ function saveDebtFromCheckout(orderData) {
   }, 0);
   const totalAmount = subtotal + shippingCost;
 
+  const activeUser = typeof getActiveUser === 'function' ? getActiveUser() : null;
   const debt = {
     id: 'HUT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     orderId: orderData.id,
     userId: orderData.userId || null,
     customerName: orderData.customer.name,
-    username: typeof getActiveUser === 'function' && getActiveUser() ? getActiveUser().username || '' : '',
+    username: orderData.customer.username || (activeUser && activeUser.username) || '',
+    email: orderData.customer.emailAddress || (activeUser && activeUser.emailAddress) || null,
+    // Simpan foto profil pemesan ke arsip hutang agar panel admin/hutang user tetap
+    // menampilkan foto asli walau akun user dihapus via Logout Bersih Total.
+    profileImage: orderData.customer.profileImage || (activeUser && (activeUser.profileImage || activeUser.avatarUrl)) || null,
     phone: orderData.customer.phone,
     address: orderData.customer.address,
     paymentMethod: orderData.customer.paymentMethod,

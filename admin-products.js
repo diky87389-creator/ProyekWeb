@@ -36,7 +36,10 @@
     var units = Array.isArray(product.units) ? product.units.map(function (unit) {
       return { name: String(unit.name || '').trim(), price: safeNumber(unit.price) };
     }).filter(function (unit) { return unit.name; }) : [];
-    return { id: createSlug(product.id || product.name), name: String(product.name || '').trim(), description: String(product.description || '').trim(), image: String(product.image || DEFAULT_IMAGE), stock: Math.floor(safeNumber(product.stock)), price: units.length ? units[0].price : safeNumber(product.price), units: units };
+    // Status ketersediaan dikontrol manual oleh admin (tombol di halaman ini),
+    // BUKAN lagi berdasarkan angka stok. Default produk baru = 'tersedia'.
+    var status = String(product.status || '').trim().toLowerCase() === 'habis' ? 'habis' : 'tersedia';
+    return { id: createSlug(product.id || product.name), name: String(product.name || '').trim(), description: String(product.description || '').trim(), image: String(product.image || DEFAULT_IMAGE), stock: Math.floor(safeNumber(product.stock)), status: status, price: units.length ? units[0].price : safeNumber(product.price), units: units };
   }
 
   function saveProducts() {
@@ -85,8 +88,33 @@
     if (!products.length) { list.innerHTML = '<div class="empty">Belum ada produk. Tambahkan produk pertama.</div>'; return; }
     list.innerHTML = products.map(function (product) {
       var unitText = product.units.map(function (unit) { return escapeHTML(unit.name) + ': ' + formatPrice(unit.price); }).join(' · ');
-      return '<article class="product-card"><img src="' + escapeHTML(product.image) + '" alt="' + escapeHTML(product.name) + '"><div class="product-body"><h2>' + escapeHTML(product.name) + '</h2><p>' + escapeHTML(product.description || 'Tidak ada deskripsi.') + '</p><p>' + unitText + '</p><div class="product-meta"><span class="stock">Stok: ' + product.stock + '</span></div><div class="card-actions"><button class="action" type="button" data-edit="' + escapeHTML(product.id) + '">Edit</button><button class="action danger" type="button" data-delete="' + escapeHTML(product.id) + '">Hapus</button></div></div></article>';
+      var isHabis = product.status === 'habis';
+      var statusBadge = isHabis
+        ? '<span class="status-badge status-habis">Stok Habis</span>'
+        : '<span class="status-badge status-tersedia">Tersedia</span>';
+      // Tombol kontrol manual: satu tombol yang berubah fungsi sesuai status.
+      // - Produk Tersedia  → tombol menonaktifkan menjadi 'Stok Habis'.
+      // - Produk Stok Habis → tombol mengaktifkan kembali menjadi 'Tersedia'.
+      var toggleAction = isHabis ? 'activate' : 'deactivate';
+      var toggleLabel = isHabis ? 'Aktifkan Kembali' : 'Nonaktifkan';
+      var toggleClass = isHabis ? 'action toggle-activate' : 'action toggle-deactivate';
+      return '<article class="product-card"><img src="' + escapeHTML(product.image) + '" alt="' + escapeHTML(product.name) + '"><div class="product-body"><h2>' + escapeHTML(product.name) + '</h2><p>' + escapeHTML(product.description || 'Tidak ada deskripsi.') + '</p><p>' + unitText + '</p><div class="product-meta"><span class="stock">Stok: ' + product.stock + '</span>' + statusBadge + '</div><div class="card-actions"><button class="' + toggleClass + '" type="button" data-toggle-status="' + escapeHTML(product.id) + '" data-next-status="' + toggleAction + '">' + toggleLabel + '</button><button class="action" type="button" data-edit="' + escapeHTML(product.id) + '">Edit</button><button class="action danger" type="button" data-delete="' + escapeHTML(product.id) + '">Hapus</button></div></div></article>';
     }).join('');
+  }
+
+  function setProductStatus(id, nextStatus) {
+    // Ubah status ketersediaan produk secara manual lalu simpan ke localStorage.
+    var status = nextStatus === 'activate' ? 'tersedia' : 'habis';
+    var found = false;
+    products = products.map(function (product) {
+      if (product.id !== id) return product;
+      found = true;
+      return Object.assign({}, product, { status: status });
+    });
+    if (!found) return;
+    if (saveProducts()) {
+      render();
+    }
   }
 
   function checkedUnits() {
@@ -154,6 +182,10 @@
       description: document.getElementById('product-description').value.trim(),
       image: existingProduct ? existingProduct.image : DEFAULT_IMAGE,
       stock: Number(document.getElementById('product-stock').value),
+      // Status produk BARU selalu 'tersedia' (tombol langsung aktif, siap dibeli).
+      // Saat mengedit, status yang sudah diatur admin dipertahankan agar tidak
+      // ter-reset hanya karena admin memperbarui kolom stok.
+      status: existingProduct ? existingProduct.status : 'tersedia',
       units: units
     };
     if (!product.id || !product.name || !units.length || units.some(function (unit) {
@@ -205,8 +237,13 @@
   }
 
   function handleListClick(event) {
+    var toggle = event.target.closest('[data-toggle-status]');
     var edit = event.target.closest('[data-edit]');
     var remove = event.target.closest('[data-delete]');
+    if (toggle) {
+      setProductStatus(toggle.dataset.toggleStatus, toggle.dataset.nextStatus);
+      return;
+    }
     if (edit) {
       var product = products.find(function (item) { return item.id === edit.dataset.edit; });
       if (product) openForm(product);
