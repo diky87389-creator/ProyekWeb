@@ -170,6 +170,10 @@ function handleLogin(event) {
   forceCleanupOldSession();
   const session = buildSession(user, { role: user.role });
   saveActiveUser(session);
+  // Catat identitas ke jejak permanen agar email & nomor telepon terkunci
+  // selamanya, bahkan setelah Logout Bersih Total. Ini memastikan email
+  // akun lama tetap terdeteksi pada pendaftaran ulang.
+  if (window.recordUsedIdentity) window.recordUsedIdentity(session.phoneNumber, session.emailAddress);
 
   showToast('Login berhasil! Mengarahkan...');
   window.setTimeout(() => {
