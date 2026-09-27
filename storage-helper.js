@@ -718,63 +718,8 @@
     }
   })();
 
-  // ==========================================
-  // Jejak identitas permanen (dikyUsedIdentities)
-  // ==========================================
-  // Mencatat email & nomor telepon yang pernah dipakai login/daftar ke
-  // penyimpanan permanen yang TIDAK ikut terhapus saat Logout Bersih Total.
-  // Dengan ini, email & nomor telepon tetap terkunci selamanya dan SELALU
-  // terdeteksi pada pendaftaran ulang, walau akun sudah dihapus. Tanpa pencatatan
-  // ini, email akun lama hilang setelah logout sehingga peringatan duplikat
-  // email "kadang muncul kadang tidak".
-  function normalizePhoneDigits(number) {
-    return String(number == null ? '' : number).replace(/[^0-9]/g, '');
-  }
-  function recordUsedIdentity(phoneNumber, emailAddress) {
-    var phone = normalizePhoneDigits(phoneNumber);
-    var email = emailAddress ? String(emailAddress).trim().toLowerCase() : '';
-    if (!phone && !email) return;
-    var KEY = 'dikyUsedIdentities';
-    var identities = [];
-    try {
-      var parsed = JSON.parse(localStorage.getItem(KEY) || '[]');
-      if (Array.isArray(parsed)) identities = parsed;
-    } catch (e) { identities = []; }
-    var matched = false;
-    identities.forEach(function (entry) {
-      if (!entry || typeof entry !== 'object') return;
-      var ePhone = entry.phone ? normalizePhoneDigits(entry.phone) : '';
-      var eEmail = entry.email ? String(entry.email).trim().toLowerCase() : '';
-      var samePhone = phone && ePhone === phone;
-      var sameEmail = email && eEmail === email;
-      if (!samePhone && !sameEmail) return;
-      matched = true;
-      if (phone && !ePhone) entry.phone = phone;
-      if (email && !eEmail) entry.email = email;
-    });
-    if (!matched) {
-      identities.push({ phone: phone || null, email: email || null, usedAt: new Date().toISOString() });
-    }
-    try { localStorage.setItem(KEY, JSON.stringify(identities)); } catch (e) {}
-  }
-  function recordActiveUserIdentity() {
-    var user;
-    try { user = getActiveUser(); } catch (e) { return; }
-    if (!user) return;
-    var phone = user.phoneNumber || user.phone || user.whatsappNumber || '';
-    var email = user.emailAddress || user.email || '';
-    if (!phone && !email) return;
-    recordUsedIdentity(phone, email);
-  }
-  // Catat identitas pengguna aktif setiap kali helper dimuat (di setiap halaman
-  // yang dirender saat user login). Ini menutup celah akun lama yang
-  // didaftarkan sebelum fitur pencatatan permanen ada: begitu user mengunjungi
-  // halaman apa pun, email & nomornya langsung dikunci permanen.
-  recordActiveUserIdentity();
-
   // Export ke global scope
   window.getUserStorageKey = getUserStorageKey;
-  window.recordUsedIdentity = recordUsedIdentity;
   window.getActiveUser = getActiveUser;
   window.isValidSession = isValidSession;
   window.getActiveUserId = getActiveUserId;
