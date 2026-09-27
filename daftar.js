@@ -391,11 +391,20 @@ function redirectIfLoggedIn() {
   }
 }
 
+let toastTimer = null;
+
 function showToast(message) {
+  // Batalkan timer lama agar toast baru TIDAK langsung tersembunyi oleh sisa
+  // timer dari klik sebelumnya. Setiap pemicu selalu tampil penuh 2200ms.
+  if (toastTimer) {
+    window.clearTimeout(toastTimer);
+    toastTimer = null;
+  }
   toast.textContent = message;
   toast.classList.add('visible');
-  window.setTimeout(() => {
+  toastTimer = window.setTimeout(() => {
     toast.classList.remove('visible');
+    toastTimer = null;
   }, 2200);
 }
 
@@ -709,8 +718,14 @@ function handleRegister(event) {
   //   - hanya email yang duplikat   → peringatan email
   //   - hanya telepon yang duplikat → peringatan telepon
   //   - keduanya duplikat           → peringatan gabungan + kedua kolom ditandai
-  // Dijalankan SEBELUM membuat ID user baru & SEBELUM menyimpan apa pun.
-  const duplicateCheck = findDuplicateIdentity(phoneNumber, emailAddress);
+  // Dibungkus try/catch agar error pembacaan storage TIDAK PERNAH menghalangi
+  // munculnya pesan peringatan kepada pengguna.
+  let duplicateCheck = { duplicate: false, email: false, phone: false };
+  try {
+    duplicateCheck = findDuplicateIdentity(phoneNumber, emailAddress);
+  } catch (error) {
+    console.warn('Validasi duplikasi gagal dijalankan.', error);
+  }
   if (duplicateCheck.duplicate) {
     const emailField = document.getElementById('email-address');
     const phoneField = document.getElementById('phone-number');
