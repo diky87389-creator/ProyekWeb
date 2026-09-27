@@ -862,44 +862,11 @@ function migrateArchivedIdentitiesToUsed() {
   }
 }
 
-// Backfill jejak permanen dari akun yang masih terdaftar & sesi aktif.
-// Membaca dikyRegisteredUsers dan dikyActiveUser lalu mencatat email & nomor
-// telepon mereka ke dikyUsedIdentities. Ini menutup celah akun lama yang
-// dibuat SEBELUM fitur pencatatan permanen: email mereka belum sempat tercatat
-// permanen sehingga deteksi duplikasi email "kadang muncul kadang tidak".
-// Dengan backfill ini, begitu halaman daftar dimuat (selama akun masih ada di
-// registry/sesi), email & nomor langsung terkunci permanen — deteksi email
-// SUDAH PASTI konsisten setiap kali tombol "Daftar" diklik, sama reliablenya
-// seperti deteksi telepon yang selalu ada di arsip pesanan.
-function backfillRegisteredUsersToUsed() {
-  try {
-    const sources = [];
-    const registered = getRegisteredUsers();
-    if (Array.isArray(registered)) sources.push.apply(sources, registered);
-    try {
-      const activeUser = JSON.parse(localStorage.getItem(activeUserKey) || 'null');
-      if (activeUser && typeof activeUser === 'object') sources.push(activeUser);
-    } catch (e) { /* abaikan */ }
-    if (!sources.length) return;
-    sources.forEach(function (user) {
-      const identity = buildActiveIdentity(user);
-      if (!identity) return;
-      const phone = identity.phone ? normalizePhone(identity.phone) : '';
-      const email = identity.email ? String(identity.email).trim().toLowerCase() : '';
-      if (!phone && !email) return;
-      recordUsedIdentity(phone, email);
-    });
-  } catch (error) {
-    console.warn('Backfill identitas dari akun terdaftar gagal.', error);
-  }
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   redirectIfLoggedIn();
   prefillFromPendingProfile();
   initializeMap();
   updateGeneratedUsername();
-  backfillRegisteredUsersToUsed();
   migrateArchivedIdentitiesToUsed();
 
   const fullNameField = document.getElementById('full-name');
