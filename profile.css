@@ -270,7 +270,7 @@ body {
   white-space: nowrap;
 }
 
-/* Bottom actions — Riwayat Pesanan & Hutang sejajar */
+/* Bottom actions — biodata, riwayat pesanan, dan hutang */
 .profile-bottom-actions {
   display: flex;
   gap: 0.75rem;
@@ -294,6 +294,7 @@ body {
     flex-direction: column;
   }
 
+  .profile-edit-button,
   .profile-orders-button,
   .profile-hutang-button {
     width: 100%;

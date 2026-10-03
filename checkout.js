@@ -350,6 +350,8 @@ function buildOrderData() {
   // Simpan juga email pemesan ke arsip, agar jejak email ikut bertahan permanen
   // (seperti nomor telepon) dan tetap terdeteksi pada validasi pendaftaran ulang.
   const userEmail = (activeUser && activeUser.emailAddress) || null;
+  const userGender = (activeUser && activeUser.gender) || null;
+  const userBirthDate = (activeUser && activeUser.birthDate) || null;
 
   return {
     id: `ORD-${Date.now()}`,
@@ -358,6 +360,8 @@ function buildOrderData() {
     profileImage: userProfileImage,
     fullName: userFullName,
     emailAddress: userEmail,
+    gender: userGender,
+    birthDate: userBirthDate,
     createdAt: new Date().toISOString(),
     cart,
     totalPrice: subtotal + shippingCost,
@@ -371,6 +375,8 @@ function buildOrderData() {
       paymentMethod,
       username: userUsername,
       profileImage: userProfileImage,
+      gender: userGender,
+      birthDate: userBirthDate,
       latitude: userLatitude,
       longitude: userLongitude
     }
@@ -529,6 +535,8 @@ function saveDebtFromCheckout(orderData) {
     customerName: orderData.customer.name,
     username: orderData.customer.username || (activeUser && activeUser.username) || '',
     email: orderData.customer.emailAddress || (activeUser && activeUser.emailAddress) || null,
+    gender: orderData.customer.gender || orderData.gender || (activeUser && activeUser.gender) || null,
+    birthDate: orderData.customer.birthDate || orderData.birthDate || (activeUser && activeUser.birthDate) || null,
     // Simpan foto profil pemesan ke arsip hutang agar panel admin/hutang user tetap
     // menampilkan foto asli walau akun user dihapus via Logout Bersih Total.
     profileImage: orderData.customer.profileImage || (activeUser && (activeUser.profileImage || activeUser.avatarUrl)) || null,

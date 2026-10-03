@@ -111,6 +111,8 @@ function buildSession(user, extra = {}) {
     profileImage: user.profileImage || user.avatarUrl || null,
     emailAddress: user.emailAddress ? user.emailAddress.toLowerCase() : null,
     phoneNumber: user.phoneNumber || user.whatsappNumber || null,
+    gender: user.gender || null,
+    birthDate: user.birthDate || null,
     address: user.address || null,
     avatarUrl: user.avatarUrl || null,
     authProvider: user.authProvider || 'email',

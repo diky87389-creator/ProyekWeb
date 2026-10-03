@@ -677,6 +677,10 @@ function handleRegister(event) {
   const username = usernameFieldValue || generateUsername(fullName);
   const phoneNumber = document.getElementById('phone-number').value.trim();
   const emailAddress = document.getElementById('email-address').value.trim();
+  const genderField = document.getElementById('gender');
+  const birthDateField = document.getElementById('birth-date');
+  const gender = genderField ? genderField.value.trim() : '';
+  const birthDate = birthDateField ? birthDateField.value.trim() : '';
   const password = document.getElementById('password').value;
   const confirmPassword = document.getElementById('confirm-password').value;
   const locationAddress = addressField ? addressField.value.trim() : '';
@@ -693,6 +697,9 @@ function handleRegister(event) {
     { condition: !username, element: usernameField, button: null, message: 'Username wajib diisi.' },
     { condition: !phoneNumber || !isValidPhoneNumber(phoneNumber), element: document.getElementById('phone-number'), button: null, message: 'Masukkan nomor telepon yang valid.' },
     { condition: !emailAddress || !isValidEmail(emailAddress), element: document.getElementById('email-address'), button: null, message: 'Masukkan alamat email yang valid.' },
+    { condition: !gender, element: genderField, button: null, message: 'Jenis Kelamin wajib dipilih.' },
+    { condition: !birthDate, element: birthDateField, button: null, message: 'Tanggal Lahir wajib diisi.' },
+    { condition: birthDate && new Date(`${birthDate}T00:00:00`) > new Date(), element: birthDateField, button: null, message: 'Tanggal Lahir tidak boleh melebihi hari ini.' },
     { condition: !gpsLocationReady || !locationAddress || !latitude || !longitude, element: addressField, button: detectLocationButton, message: 'Alamat wajib diisi melalui tombol Gunakan Lokasi Terkini Saya.' },
     { condition: addressDetailField && !addressDetailField.readOnly && manualAddress && !detailAddressSaved, element: addressDetailField, button: null, message: 'Detail Alamat Lengkap belum disimpan. Klik tombol Simpan terlebih dahulu setelah selesai mengetik alamat lengkap.' },
     { condition: !manualAddress || !detailAddressSaved || !addressDetailField || addressDetailField.readOnly === false, element: addressDetailField, button: null, message: 'Detail Alamat Lengkap wajib diisi dan disimpan terlebih dahulu.' },
@@ -782,6 +789,8 @@ function handleRegister(event) {
     profileImage: profileImageBase64 || null,
     phoneNumber: normalizePhone(phoneNumber),
     emailAddress: emailAddress.toLowerCase(),
+    gender,
+    birthDate,
     password,
     address: finalAddress || locationAddress,
     latitude: Number(latitude),
@@ -804,6 +813,8 @@ function handleRegister(event) {
     profileImage: newUser.profileImage,
     phoneNumber: newUser.phoneNumber,
     emailAddress: newUser.emailAddress,
+    gender: newUser.gender,
+    birthDate: newUser.birthDate,
     address: newUser.address,
     latitude: newUser.latitude,
     longitude: newUser.longitude,

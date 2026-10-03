@@ -5,6 +5,8 @@ const userAvatarInitials = document.getElementById('user-avatar-initials');
 const userContactField = document.getElementById('user-contact');
 const userEmailField = document.getElementById('user-email');
 const userUsernameField = document.getElementById('user-username');
+const userGenderField = document.getElementById('user-gender');
+const userBirthDateField = document.getElementById('user-birth-date');
 const userAddressField = document.getElementById('user-address');
 const userLoginTimeField = document.getElementById('user-login-time');
 const userIdField = document.getElementById('user-id');
@@ -19,6 +21,8 @@ function normalizeActiveUser(user) {
     userId: user.userId || user.id || null,
     username: user.username || null,
     phoneNumber: user.phoneNumber || whatsappNumber || null,
+    gender: user.gender || null,
+    birthDate: user.birthDate || null,
     profileImage: user.profileImage || user.avatarUrl || null,
     avatarUrl: user.avatarUrl || null,
     authProvider: user.authProvider || 'email',
@@ -109,6 +113,8 @@ function renderProfile() {
   userContactField.textContent = user.phoneNumber || user.contactInfo || '-';
   userEmailField.textContent = user.emailAddress || (user.contactInfo && user.contactInfo.includes('@') ? user.contactInfo : '-') || '-';
   if (userUsernameField) userUsernameField.textContent = user.username || '-';
+  if (userGenderField) userGenderField.textContent = user.gender || '-';
+  if (userBirthDateField) userBirthDateField.textContent = user.birthDate ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${user.birthDate}T00:00:00Z`)) : '-';
   if (userAddressField) userAddressField.textContent = user.address || '-';
   userIdField.textContent = user.id || '-';
   userLoginTimeField.textContent = formatDateTime(user.loggedAt);

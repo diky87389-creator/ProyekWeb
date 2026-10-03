@@ -88,22 +88,9 @@
     return (name || "?").trim().split(/\s+/).map(function (w) { return w[0]; }).join("").slice(0, 2).toUpperCase();
   }
 
-  // Foto profil users: prioritaskan foto yang tersimpan di catatan hutang, lalu
-  // dari akun user yang sedang login. Jika user memang tidak memasang foto saat
-  // Daftar Akun, barulah ditampilkan nama singkat / inisial.
-  function resolveCustomerImage(debt) {
-    if (debt && typeof debt.profileImage === 'string' && debt.profileImage) return debt.profileImage;
-    if (debt && typeof debt.avatarUrl === 'string' && debt.avatarUrl) return debt.avatarUrl;
-    var activeUser = typeof getActiveUser === 'function' ? getActiveUser() : null;
-    if (activeUser) {
-      if (typeof activeUser.profileImage === 'string' && activeUser.profileImage) return activeUser.profileImage;
-      if (typeof activeUser.avatarUrl === 'string' && activeUser.avatarUrl) return activeUser.avatarUrl;
-    }
-    return '';
-  }
-
+  // Tampilkan identitas yang tersimpan pada snapshot kasbon.
   function customerAvatarMarkup(debt) {
-    var image = resolveCustomerImage(debt);
+    var image = debt && (debt.profileImage || debt.avatarUrl) || '';
     if (image) {
       return '<div class="debt-avatar debt-avatar-photo"><img src="' + escapeHtml(image) + '" alt="Foto profil ' + escapeHtml(debt && debt.customerName || 'pelanggan') + '"></div>';
     }
@@ -175,8 +162,6 @@
   }
 
   function renderList() {
-    const activeUser = typeof getActiveUser === 'function' ? getActiveUser() : null;
-    const username = activeUser && activeUser.username ? activeUser.username : '-';
     renderSummary();
     var filtered = getFilteredDebts();
 
@@ -207,7 +192,7 @@
         customerAvatarMarkup(d) +
         "<div>" +
         '<p class="debt-name">' + escapeHtml(d.customerName) + "</p>" +
-        '<p class="debt-sub">Username: ' + escapeHtml(d.username || username) + '</p>' +
+        '<p class="debt-sub">Username: ' + escapeHtml(d.username || '-') + '</p>' +
         '<p class="debt-sub">' + formatDate(d.date) + (d.dueDate ? " • Jatuh tempo " + formatDate(d.dueDate) : "") + "</p>" +
         '<p class="debt-sub">' + escapeHtml(itemsText || "-") + "</p>" +
         '<div class="debt-item-images">' + itemsImages + '</div>' +

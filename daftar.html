@@ -19,7 +19,7 @@
         </div>
       </div>
 
-      <form id="register-form" class="auth-form">
+      <form id="register-form" class="auth-form" novalidate>
         <label for="full-name">Nama Lengkap</label>
         <input id="full-name" name="fullName" type="text" placeholder="Masukkan nama lengkap" required />
 
@@ -35,6 +35,16 @@
 
         <label for="email-address">Email</label>
         <input id="email-address" name="emailAddress" type="email" placeholder="contoh@email.com" required />
+
+        <label for="gender">Jenis Kelamin</label>
+        <select id="gender" name="gender" required>
+          <option value="">Pilih jenis kelamin</option>
+          <option value="Laki-laki">Laki-laki</option>
+          <option value="Perempuan">Perempuan</option>
+        </select>
+
+        <label for="birth-date">Tanggal Lahir</label>
+        <input id="birth-date" name="birthDate" type="date" required />
 
         <div class="location-box">
           <label for="address">Alamat</label>

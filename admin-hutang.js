@@ -31,7 +31,7 @@
         return (userId && values.indexOf(userId) !== -1) || identifiers.some(function (value) { return values.indexOf(value) !== -1; });
       }) : null;
       var fullName = debt.fullName || debt.customerName || (user && user.fullName) || '';
-      return { username: debt.username || (user && user.username) || '-', initials: buildInitials(fullName), profileImage: debt.profileImage || debt.avatarUrl || (user && (user.profileImage || user.avatarUrl)) || null };
+      return { username: debt.username || (user && user.username) || '-', initials: buildInitials(fullName), profileImage: debt.profileImage || debt.avatarUrl || (user && (user.profileImage || user.avatarUrl)) || null, gender: debt.gender || (user && user.gender) || '-', birthDate: debt.birthDate || (user && user.birthDate) || '-' };
     } catch (error) { return { username: debt.username || '-', initials: buildInitials(debt.fullName || debt.customerName), profileImage: null }; }
   }
   function resolveImage(item) {
@@ -86,7 +86,8 @@
   function showDetail(id) {
     var debt = debts.find(function (item) { return String(item.id) === String(id); });
     if (!debt) return;
-    document.getElementById('debt-detail').innerHTML = '<div class="detail"><p><strong>ID Kasbon:</strong> ' + esc(debt.id) + '</p><p><strong>ID Order:</strong> ' + esc(debt.orderId || '-') + '</p><p><strong>Pelanggan:</strong> ' + esc(debt.customerName || '-') + '</p><p><strong>Telepon:</strong> ' + esc(debt.phone || '-') + '</p><p><strong>Alamat:</strong> ' + esc(debt.address || '-') + '</p><p><strong>Status:</strong> ' + (status(debt.status) === 'lunas' ? 'Lunas' : 'Belum Lunas') + '</p><p><strong>Total:</strong> ' + money(total(debt)) + '</p><ul class="detail-items">' + items(debt).map(function (item) { return '<li>' + esc(item.name) + ' × ' + esc(item.qty || item.quantity || 0) + '</li>'; }).join('') + '</ul></div>';
+    var identity = resolveIdentity(debt);
+    document.getElementById('debt-detail').innerHTML = '<div class="detail"><p><strong>ID Kasbon:</strong> ' + esc(debt.id) + '</p><p><strong>ID Order:</strong> ' + esc(debt.orderId || '-') + '</p><p><strong>Pelanggan:</strong> ' + esc(debt.customerName || '-') + '</p><p><strong>Jenis kelamin:</strong> ' + esc(identity.gender) + '</p><p><strong>Tanggal lahir:</strong> ' + esc(identity.birthDate) + '</p><p><strong>Telepon:</strong> ' + esc(debt.phone || '-') + '</p><p><strong>Alamat:</strong> ' + esc(debt.address || '-') + '</p><p><strong>Status:</strong> ' + (status(debt.status) === 'lunas' ? 'Lunas' : 'Belum Lunas') + '</p><p><strong>Total:</strong> ' + money(total(debt)) + '</p><ul class="detail-items">' + items(debt).map(function (item) { return '<li>' + esc(item.name) + ' × ' + esc(item.qty || item.quantity || 0) + '</li>'; }).join('') + '</ul></div>';
     if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
   }
   list.addEventListener('change', function (event) {
