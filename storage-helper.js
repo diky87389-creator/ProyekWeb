@@ -703,6 +703,121 @@
   }
 
   /**
+   * ==========================================
+   * Pembatalan Pesanan oleh Admin (Tombol "Hapus" di admin-orders.html)
+   * ==========================================
+   * Berbeda dari hapusPesananOrderLintasArsip yang menghapus total: fungsi ini
+   * MENANDAI pesanan sebagai 'dibatalkan' di arsip admin (dikyOrders_<userId>)
+   * dan riwayat tampilan user (riwayatPesanan_<userId>) agar tetap tercatat
+   * sebagai audit di panel admin, namun TIDAK ditampilkan di tab aktif
+   * orders.html (tab Dikemas/Dikirim/Silahkan Untuk Diambil/Selesai menyaring
+   * status 'dibatalkan'). Snapshot success.html (pesananAktif/dikyLastOrder)
+   * dan pesananBaru dihapus sehingga pesanan hilang dari success.html. Catatan
+   * hutang (dikyHutang_<userId>) yang orderId-nya cocok IKUT DIHAPUS agar
+   * hilang dari hutang.html dan admin-hutang.html.
+   *
+   * Cara memakai: batalkanPesananOrderLintasArsip({ orderId: 'ORD-...', ownerUserId: '123' })
+   *
+   * @param {{orderId?: string, ownerUserId?: string}} options
+   * @returns {{orderId: string, markedCancelled: boolean, removedSnapshots: boolean, removedDebt: boolean, touchedKeys: string[]}}
+   */
+  function batalkanPesananOrderLintasArsip(options) {
+    const opts = options || {};
+    const orderId = opts.orderId ? String(opts.orderId) : '';
+    const ownerUserId = opts.ownerUserId ? String(opts.ownerUserId) : '';
+    const result = { orderId: orderId, markedCancelled: false, removedSnapshots: false, removedDebt: false, touchedKeys: [] };
+    if (!orderId) return result;
+
+    const matchesOrder = function (entry) {
+      return Boolean(entry) && String(entry.id || entry.orderId || '') === orderId;
+    };
+    const readArray = function (key) {
+      try { const parsed = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(parsed) ? parsed : []; } catch (error) { return []; }
+    };
+    const writeArray = function (key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); result.touchedKeys.push(key); return true; } catch (error) { return false; }
+    };
+    const stampCancelled = function (entry) {
+      entry.status = 'dibatalkan';
+      if (!entry.cancelledAt) entry.cancelledAt = new Date().toISOString();
+    };
+
+    const keysToScan = [];
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        const isUserScoped = /^(dikyOrders_|riwayatPesanan_|pesananAktif_|dikyLastOrder_|pesananBaru_|dikyHutang_)/.test(key);
+        if (!isUserScoped) continue;
+        if (ownerUserId) {
+          const suffix = key.slice(key.indexOf('_') + 1);
+          if (suffix !== ownerUserId) continue;
+        }
+        keysToScan.push(key);
+      }
+    } catch (error) { return result; }
+
+    keysToScan.forEach(function (key) {
+      let parsed;
+      try { parsed = JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return; }
+      if (parsed == null) return;
+
+      // 1) Arsip admin (dikyOrders_): TANDAI 'dibatalkan', jangan hapus.
+      if (/^dikyOrders_/.test(key)) {
+        if (Array.isArray(parsed)) {
+          let changed = false;
+          parsed.forEach(function (entry) {
+            if (matchesOrder(entry)) { stampCancelled(entry); changed = true; }
+          });
+          if (changed) { writeArray(key, parsed); result.markedCancelled = true; }
+        }
+        return;
+      }
+
+      // 2) Riwayat tampilan user (riwayatPesanan_): TANDAI 'dibatalkan' agar
+      //    konsisten & tersaring dari semua tab orders.html.
+      if (/^riwayatPesanan_/.test(key)) {
+        if (Array.isArray(parsed)) {
+          let changed = false;
+          parsed.forEach(function (entry) {
+            if (matchesOrder(entry)) { stampCancelled(entry); changed = true; }
+          });
+          if (changed) writeArray(key, parsed);
+        }
+        return;
+      }
+
+      // 3) Hutang (dikyHutang_): HAPUS catatan hutang dengan orderId cocok
+      //    agar hilang dari hutang.html & admin-hutang.html.
+      if (/^dikyHutang_/.test(key)) {
+        if (Array.isArray(parsed)) {
+          const before = parsed.length;
+          const filtered = parsed.filter(function (debt) {
+            if (!debt || typeof debt !== 'object') return true;
+            return String(debt.orderId || '') !== orderId;
+          });
+          if (filtered.length !== before) { writeArray(key, filtered); result.removedDebt = true; }
+        }
+        return;
+      }
+
+      // 4) Snapshot tunggal (pesananAktif_ / dikyLastOrder_ / pesananBaru_):
+      //    hapus bila cocok agar hilang dari success.html.
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (matchesOrder(parsed)) {
+          try { localStorage.removeItem(key); result.touchedKeys.push(key); result.removedSnapshots = true; } catch (error) { }
+          return;
+        }
+        if (Array.isArray(parsed.items) && parsed.items.some(matchesOrder)) {
+          try { localStorage.removeItem(key); result.touchedKeys.push(key); } catch (error) { }
+        }
+      }
+    });
+
+    return result;
+  }
+
+  /**
    * Membatalkan pesanan yang sedang berada di halaman checkout.html.
    * Pesanan pada tahap ini BELUM menjadi arsip admin (dikyOrders_<userId> belum ada).
    * Yang dibersihkan hanya sumber pesanan milik user aktif, sehingga ringkasan
@@ -900,6 +1015,7 @@
   window.pindahkanKeRiwayatPesanan = pindahkanKeRiwayatPesanan;
   window.moveToOrderHistory = pindahkanKeRiwayatPesanan;
   window.hapusPesananOrderLintasArsip = hapusPesananOrderLintasArsip;
+  window.batalkanPesananOrderLintasArsip = batalkanPesananOrderLintasArsip;
   window.hapusPesananDariCheckout = hapusPesananDariCheckout;
   window.tampilkanTombolPantauPesanan = tampilkanTombolPantauPesanan;
   window.displayNotificationButton = tampilkanTombolPantauPesanan;
