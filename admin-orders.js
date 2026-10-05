@@ -163,6 +163,8 @@
     }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 });
   }
   function applyShippedStatus(order, location) {
+    // Pesanan yang sudah dibatalkan tidak boleh berubah menjadi Dikirim.
+    if (validStatus(order.status) === 'dibatalkan') return;
     if (location) {
       var locationKey = courierLocationKey(order.id);
       if (locationKey) {
@@ -201,6 +203,8 @@
   }
   function markOrderAsShipped(order) {
     if (!order) return;
+    // Pesanan yang sudah dibatalkan tidak boleh diproses / dipindah status lagi.
+    if (validStatus(order.status) === 'dibatalkan') return;
     clearCourierLocation(order.id);
     if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       console.warn('[GPS] Geolocation biasanya memerlukan HTTPS atau localhost.', window.location.href);
@@ -258,17 +262,19 @@
     }
     if (!window.confirm('Batalkan pesanan ini? Pesanan akan ditandai "Dibatalkan" di panel admin (tetap tercatat), dihapus dari tab Dikemas/Dikirim dan halaman success.html milik pelanggan, serta catatan hutangnya (jika ada) akan dihapus dari hutang.html & admin-hutang.html. Lanjutkan?')) return;
 
-    // Pembatalan oleh admin: tandai 'dibatalkan' di arsip admin + riwayat user,
-    // hapus snapshot success.html, dan hapus catatan hutang yang cocok.
+    batalkanPesananDariAdmin(order);
+  }
+
+  function batalkanPesananDariAdmin(order) {
+    if (!order) return;
     var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : '');
+
+    // Pembatalan terpusat: tandai 'dibatalkan' di arsip admin + riwayat user,
+    // hapus snapshot success.html, dan hapus catatan hutang yang cocok.
     if (typeof window.batalkanPesananOrderLintasArsip === 'function') {
       window.batalkanPesananOrderLintasArsip({ orderId: String(order.id), ownerUserId: ownerId });
-    } else if (typeof window.hapusPesananOrderLintasArsip === 'function') {
-      // Fallback lama bila helper baru belum termuat.
-      window.hapusPesananOrderLintasArsip({ orderId: String(order.id), ownerUserId: ownerId });
     } else {
-      // Fallback aman bila helper belum termuat: tandai dibatalkan manual.
-      order.status = 'dibatalkan';
+      // Fallback bila helper belum termuat: tandai riwayat user secara manual.
       try {
         var historyKey = ownerId ? 'riwayatPesanan_' + ownerId : '';
         if (historyKey) {
@@ -286,6 +292,12 @@
     // Hentikan pelacakan kurir & bersihkan lokasi GPS order yang dibatalkan.
     clearCourierLocation(order.id);
     orders = readAllOrders();
+    // PENTING: pastikan status 'dibatalkan' benar-benar tersimpan di arsip admin.
+    // Tanpa ini, reload dari storage mengembalikan status lama sehingga tombol
+    // Dikirim / Silahkan Untuk Diambil / Selesai tetap aktif dan pesanan yang
+    // sudah dibatalkan bisa ikut pindah ke tab Selesai di orders.html.
+    var cancelledEntry = orders.find(function (item) { return String(item.id) === String(order.id); });
+    if (cancelledEntry && validStatus(cancelledEntry.status) !== 'dibatalkan') cancelledEntry.status = 'dibatalkan';
     save(); render();
   }
   function deleteAllOrders() {
@@ -322,6 +334,11 @@
         return;
       }
       var selectedStatus = validStatus(e.target.value);
+      // Memilih "Dibatalkan" lewat dropdown = pembatalan penuh (sama seperti tombol Hapus).
+      if (selectedStatus === 'dibatalkan') {
+        batalkanPesananDariAdmin(order);
+        return;
+      }
       if (selectedStatus === 'dikirim') {
           // Satu-satunya jalur opsi status yang memanggil GPS.
           markOrderAsShipped(order);
