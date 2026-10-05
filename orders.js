@@ -75,7 +75,9 @@ function getOrders() {
       else merged.push(order);
     });
     if (merged.length) {
-      localStorage.setItem(historyKey, JSON.stringify(merged));
+      if (typeof window.writeUserStorage === 'function') {
+        window.writeUserStorage(historyKey, merged, [getUserStorageKey('checkoutForm')].filter(Boolean));
+      }
       return merged;
     }
     if (raw) {
@@ -83,7 +85,9 @@ function getOrders() {
       return Array.isArray(parsed) ? parsed : [];
     }
   } catch (error) {
-    console.warn('Data riwayat pesanan user tidak valid.', error);
+    if (typeof window.isQuotaExceededError !== 'function' || !window.isQuotaExceededError(error)) {
+      console.warn('Data riwayat pesanan user tidak dapat dibaca.');
+    }
   }
 
   // Migrasi satu kali untuk user lama: salin data ke key riwayat user.
@@ -91,11 +95,14 @@ function getOrders() {
   try {
     const legacy = adminOrdersKey ? JSON.parse(localStorage.getItem(adminOrdersKey) || '[]') : [];
     if (Array.isArray(legacy) && legacy.length > 0) {
-      localStorage.setItem(historyKey, JSON.stringify(legacy));
+      if (typeof window.writeUserStorage === 'function'
+        && !window.writeUserStorage(historyKey, legacy, [getUserStorageKey('checkoutForm')].filter(Boolean))) return [];
       return legacy;
     }
   } catch (error) {
-    console.warn('Migrasi riwayat pesanan user gagal.', error);
+    if (typeof window.isQuotaExceededError !== 'function' || !window.isQuotaExceededError(error)) {
+      console.warn('Migrasi riwayat pesanan user gagal.');
+    }
   }
   return [];
 }
@@ -103,12 +110,11 @@ function getOrders() {
 function saveOrders(orders) {
   const historyKey = getUserStorageKey('riwayatPesanan');
   if (!historyKey) return;
-  try {
-    // Aksi hapus user hanya memodifikasi salinan riwayat ini.
-    localStorage.setItem(historyKey, JSON.stringify(Array.isArray(orders) ? orders : []));
-  } catch (error) {
-    console.warn('Riwayat pesanan user tidak dapat disimpan.', error);
+  if (typeof window.writeUserStorage === 'function') {
+    return window.writeUserStorage(historyKey, Array.isArray(orders) ? orders : [], [getUserStorageKey('checkoutForm')].filter(Boolean));
   }
+  try { localStorage.setItem(historyKey, JSON.stringify(Array.isArray(orders) ? orders : [])); return true; }
+  catch (error) { return false; }
 }
 
 function formatDate(isoString) {
@@ -378,14 +384,22 @@ function renderOrders() {
     const orderActions = document.createElement('div');
     orderActions.className = 'order-actions';
 
-    const removeButton = document.createElement('button');
-    removeButton.className = 'button button-secondary';
-    removeButton.type = 'button';
-    removeButton.dataset.removeId = order.id;
-    removeButton.textContent = 'Hapus';
-    removeButton.addEventListener('click', () => removeOrder(order.id));
+    // ATURAN TOMBOL HAPUS:
+    // Tombol "Hapus" HANYA muncul di tab "Selesai". Pada tab Dikemas / Dikirim /
+    // Silahkan Untuk Diambil, pembatalan TIDAK dilakukan dari sini. Untuk membatalkan
+    // pesanan yang masih diproses, pelanggan menghubungi admin via chat WA, lalu admin
+    // menekan tombol "Hapus" di admin-orders.html yang akan menghapus pesanan ini
+    // secara langsung dari tab Dikemas/Dikirim dan dari halaman success.html.
+    if (activeTab === 'selesai') {
+      const removeButton = document.createElement('button');
+      removeButton.className = 'button button-secondary';
+      removeButton.type = 'button';
+      removeButton.dataset.removeId = order.id;
+      removeButton.textContent = 'Hapus';
+      removeButton.addEventListener('click', () => removeOrder(order.id));
+      orderActions.append(removeButton);
+    }
 
-    orderActions.append(removeButton);
     orderFooter.append(orderTotal, orderActions);
 
     if (activeTab === 'dikirim') renderDeliveryMap(order, orderCard);

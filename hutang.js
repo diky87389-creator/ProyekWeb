@@ -45,10 +45,14 @@
       return;
     }
 
+    if (typeof window.writeUserStorage === 'function') {
+      return window.writeUserStorage(storageKey, data);
+    }
     try {
       localStorage.setItem(storageKey, JSON.stringify(data));
+      return true;
     } catch (e) {
-      console.warn('Gagal menyimpan data hutang:', e);
+      return false;
     }
   }
 

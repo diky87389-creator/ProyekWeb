@@ -18,6 +18,7 @@ const saveAddressDetailButton = document.getElementById('save-address-detail-btn
 const editAddressDetailButton = document.getElementById('edit-address-detail-btn');
 const detectLocationButton = document.getElementById('detect-location-btn');
 let profileImageBase64 = '';
+let profileImageReadPending = false;
 let map;
 let locationMarker;
 let gpsLocationReady = false;
@@ -88,7 +89,7 @@ function syncUserAddressRecord(fullAddress, latitudeValue, longitudeValue) {
       localStorage.setItem(activeUserKey, JSON.stringify(activeUserRecord));
     }
   } catch (error) {
-    console.warn('Gagal memperbarui sesi aktif dengan alamat gabungan.', error);
+    console.warn('Gagal memperbarui sesi aktif dengan alamat gabungan.');
   }
 
   try {
@@ -105,7 +106,7 @@ function syncUserAddressRecord(fullAddress, latitudeValue, longitudeValue) {
       saveRegisteredUsers(users);
     }
   } catch (error) {
-    console.warn('Gagal memperbarui data pengguna di localStorage dengan alamat gabungan.', error);
+    console.warn('Gagal memperbarui data pengguna di localStorage dengan alamat gabungan.');
   }
 }
 
@@ -348,12 +349,29 @@ function handleProfilePhotoChange(event) {
     if (fotoProfilPreview) { fotoProfilPreview.hidden = true; fotoProfilPreview.removeAttribute('src'); }
     return;
   }
+  profileImageReadPending = true;
   const reader = new FileReader();
-  reader.onload = () => {
-    profileImageBase64 = String(reader.result || '');
-    if (fotoProfilPreview) { fotoProfilPreview.src = profileImageBase64; fotoProfilPreview.hidden = false; }
+  reader.onload = async () => {
+    const source = String(reader.result || '');
+    try {
+      profileImageBase64 = typeof window.compressProfileImageDataUrl === 'function'
+        ? await window.compressProfileImageDataUrl(source)
+        : source;
+      if (!profileImageBase64) throw new Error('Foto tidak dapat diperkecil.');
+      if (fotoProfilPreview) { fotoProfilPreview.src = profileImageBase64; fotoProfilPreview.hidden = false; }
+    } catch (error) {
+      profileImageBase64 = '';
+      fotoProfilInput.value = '';
+      alert('Foto profil gagal diproses. Pilih foto lain atau lanjut tanpa foto.');
+    } finally {
+      profileImageReadPending = false;
+    }
   };
-  reader.onerror = () => { alert('Foto profil gagal dibaca.'); event.target.value = ''; };
+  reader.onerror = () => {
+    profileImageReadPending = false;
+    alert('Foto profil gagal dibaca.');
+    event.target.value = '';
+  };
   reader.readAsDataURL(file);
 }
 const usernameField = document.getElementById('username');
@@ -422,28 +440,50 @@ function normalizeUserRecord(user) {
 }
 
 function getRegisteredUsers() {
-  const raw = localStorage.getItem(usersKey);
+  let raw;
+  let users;
   try {
-    const users = raw ? JSON.parse(raw) : [];
-    const normalizedUsers = users.map(normalizeUserRecord);
-    if (raw && JSON.stringify(normalizedUsers) !== JSON.stringify(users)) {
-      saveRegisteredUsers(normalizedUsers);
-    }
-    return normalizedUsers;
+    raw = localStorage.getItem(usersKey);
+    users = raw ? JSON.parse(raw) : [];
   } catch (error) {
     console.warn('Data pengguna tidak valid.', error);
-    localStorage.removeItem(usersKey);
+    try { localStorage.removeItem(usersKey); } catch (removeError) { }
     return [];
   }
+
+  if (!Array.isArray(users)) return [];
+  const normalizedUsers = users.map(normalizeUserRecord);
+  if (raw && JSON.stringify(normalizedUsers) !== JSON.stringify(users) && !saveRegisteredUsers(normalizedUsers)) {
+    console.warn('Normalisasi data akun belum tersimpan; data akun asli tetap dipertahankan.');
+  }
+  return normalizedUsers;
 }
 
 function saveRegisteredUsers(users) {
   const normalizedUsers = users.map(normalizeUserRecord);
-  localStorage.setItem(usersKey, JSON.stringify(normalizedUsers));
+  if (typeof window.writeUserStorage === 'function') return window.writeUserStorage(usersKey, normalizedUsers);
+  try {
+    localStorage.setItem(usersKey, JSON.stringify(normalizedUsers));
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function saveActiveUser(user) {
-  localStorage.setItem(activeUserKey, JSON.stringify(user));
+  const session = Object.assign({}, user);
+  delete session.profileImage;
+  delete session.avatarUrl;
+  const userId = session && session.id ? String(session.id) : '';
+  const cleanupKeys = userId ? [`dikyCheckoutForm_${userId}`, `dikyCheckoutSummary_${userId}`] : [];
+  const saved = typeof window.writeUserStorage === 'function'
+    ? window.writeUserStorage(activeUserKey, session, cleanupKeys)
+    : (() => { try { localStorage.setItem(activeUserKey, JSON.stringify(session)); return true; } catch (error) { return false; } })();
+  if (!saved) return false;
+  if (userId) {
+    try { localStorage.setItem('dikySessionActivity_' + userId, String(Date.now())); } catch (error) { }
+  }
+  return true;
 }
 
 function getPendingProfile() {
@@ -535,7 +575,12 @@ function readUsedIdentities() {
       const phone = rawPhone ? normalizePhone(rawPhone) : '';
       const email = rawEmail ? String(rawEmail).trim().toLowerCase() : '';
       if (!phone && !email) return;
-      normalized.push({ phone: phone || null, email: email || null });
+      normalized.push({
+        userId: entry.userId == null ? null : String(entry.userId),
+        phone: phone || null,
+        email: email || null,
+        usedAt: entry.usedAt || null
+      });
     });
     return normalized;
   } catch (error) {
@@ -544,43 +589,45 @@ function readUsedIdentities() {
   }
 }
 
-function recordUsedIdentity(phoneNumber, emailAddress) {
-  // Simpan email & nomor telepon ke jejak permanen.
-  // PENTING: fungsi ini MELENGKAPI entri yang sudah ada, bukan berhenti begitu
-  // ada satu kecocokan. Jika nomor telepon sudah tercatat tetapi emailnya belum
-  // (atau sebaliknya), field yang masih kosong akan diisi. Dengan begitu kedua
-  // data selalu terkunci dan bisa dideteksi pada pendaftaran berikutnya.
+function recordUsedIdentity(userId, phoneNumber, emailAddress) {
+  // Catatan identitas ditautkan ke pemilik, dan nomor lama tetap tercatat.
+  const normalizedUserId = userId == null ? '' : String(userId);
   const normalizedPhone = normalizePhone(phoneNumber);
   const normalizedEmail = String(emailAddress == null ? '' : emailAddress).trim().toLowerCase();
-  if (!normalizedPhone && !normalizedEmail) return;
+  if (!normalizedUserId || (!normalizedPhone && !normalizedEmail)) return;
   try {
     const identities = readUsedIdentities();
-    let matched = false;
-
+    let exactIdentityExists = false;
     identities.forEach((entry) => {
       if (!entry || typeof entry !== 'object') return;
       const entryPhone = entry.phone ? normalizePhone(entry.phone) : '';
       const entryEmail = entry.email ? String(entry.email).trim().toLowerCase() : '';
-      const samePhone = normalizedPhone && entryPhone === normalizedPhone;
-      const sameEmail = normalizedEmail && entryEmail === normalizedEmail;
-      if (!samePhone && !sameEmail) return;
-      matched = true;
-      // Lengkapi field yang masih kosong pada entri yang cocok.
-      if (normalizedPhone && !entryPhone) entry.phone = normalizedPhone;
-      if (normalizedEmail && !entryEmail) entry.email = normalizedEmail;
+      const ownerId = entry.userId ? String(entry.userId) : '';
+      const belongsToUser = ownerId === normalizedUserId || (!ownerId && (
+        (normalizedPhone && entryPhone === normalizedPhone) ||
+        (normalizedEmail && entryEmail === normalizedEmail)
+      ));
+      if (!belongsToUser) return;
+      if (!ownerId) entry.userId = normalizedUserId;
+      if (entryPhone === normalizedPhone && entryEmail === normalizedEmail) exactIdentityExists = true;
     });
 
-    if (!matched) {
+    if (!exactIdentityExists) {
       identities.push({
+        userId: normalizedUserId,
         phone: normalizedPhone || null,
         email: normalizedEmail || null,
         usedAt: new Date().toISOString()
       });
     }
 
+    if (typeof window.writeUserStorage === 'function') {
+      return window.writeUserStorage(usedIdentitiesKey, identities);
+    }
     localStorage.setItem(usedIdentitiesKey, JSON.stringify(identities));
+    return true;
   } catch (error) {
-    console.warn('Jejak identitas permanen tidak dapat disimpan.', error);
+    return false;
   }
 }
 
@@ -670,6 +717,10 @@ function handleRegister(event) {
   event.preventDefault();
 
   clearValidationStyles();
+  if (profileImageReadPending) {
+    showToast('Tunggu sampai foto profil selesai diproses.');
+    return;
+  }
 
   const fullNameField = document.getElementById('full-name');
   const usernameFieldValue = usernameField ? usernameField.value.trim() : '';
@@ -800,17 +851,19 @@ function handleRegister(event) {
   };
 
   users.push(newUser);
-  saveRegisteredUsers(users);
+  if (!saveRegisteredUsers(users)) {
+    showToast('Pendaftaran belum dapat disimpan karena penyimpanan browser penuh. Kosongkan sebagian ruang lalu coba lagi.');
+    return;
+  }
   // Catat identitas ke jejak permanen agar email & nomor telepon ini terkunci
   // selamanya, bahkan bila akun langsung dihapus via Logout Bersih Total.
-  recordUsedIdentity(newUser.phoneNumber, newUser.emailAddress);
+  recordUsedIdentity(newUser.id, newUser.phoneNumber, newUser.emailAddress);
   syncUserAddressRecord(newUser.address, newUser.latitude, newUser.longitude);
-  saveActiveUser({
+  const sessionSaved = saveActiveUser({
     id: newUser.id,
     userId: newUser.userId,
     fullName: newUser.fullName,
     username: newUser.username,
-    profileImage: newUser.profileImage,
     phoneNumber: newUser.phoneNumber,
     emailAddress: newUser.emailAddress,
     gender: newUser.gender,
@@ -818,10 +871,13 @@ function handleRegister(event) {
     address: newUser.address,
     latitude: newUser.latitude,
     longitude: newUser.longitude,
-    avatarUrl: newUser.avatarUrl,
     authProvider: newUser.authProvider,
     loggedAt: new Date().toISOString()
   });
+  if (!sessionSaved) {
+    showToast('Akun berhasil dibuat, tetapi sesi belum dapat disimpan karena storage penuh. Silakan login setelah mengosongkan ruang.');
+    return;
+  }
   localStorage.removeItem(pendingGoogleKey);
 
   showToast('Pendaftaran berhasil! Anda langsung masuk dan diarahkan ke beranda...');
@@ -859,17 +915,21 @@ function migrateArchivedIdentitiesToUsed() {
         matched = true;
         if (phone && !recordPhone) record.phone = phone;
         if (email && !recordEmail) record.email = email;
+        if (!record.userId && entry.id) record.userId = String(entry.id);
       });
       if (!matched) {
-        existing.push({ phone: phone || null, email: email || null, usedAt: new Date().toISOString() });
+        existing.push({ userId: entry.id == null ? null : String(entry.id), phone: phone || null, email: email || null, usedAt: new Date().toISOString() });
         changed = true;
       } else {
         changed = true;
       }
     });
-    if (changed) localStorage.setItem(usedIdentitiesKey, JSON.stringify(existing));
+    if (changed) {
+      if (typeof window.writeUserStorage === 'function') window.writeUserStorage(usedIdentitiesKey, existing);
+      else localStorage.setItem(usedIdentitiesKey, JSON.stringify(existing));
+    }
   } catch (error) {
-    console.warn('Migrasi jejak identitas dari arsip gagal.', error);
+    console.warn('Migrasi jejak identitas dari arsip gagal.');
   }
 }
 

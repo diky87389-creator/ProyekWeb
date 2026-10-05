@@ -50,7 +50,6 @@
       window.dispatchEvent(new Event('products-updated'));
       return true;
     } catch (error) {
-      console.error('Gagal menyimpan katalog produk:', error);
       return false;
     }
   }
@@ -114,6 +113,10 @@
     if (!found) return;
     if (saveProducts()) {
       render();
+    } else {
+      products = readProducts().map(normalizeProduct);
+      render();
+      window.alert('Perubahan produk tidak dapat disimpan karena penyimpanan browser penuh. Data sebelumnya tetap dipakai.');
     }
   }
 

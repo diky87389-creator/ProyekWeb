@@ -79,10 +79,26 @@ function saveOrders(orders) {
   const ordersKey = getUserStorageKey('orders');
   if (!ordersKey) {
     console.warn('saveOrders: Tidak dapat menyimpan orders - user tidak valid');
-    return;
+    return false;
   }
 
-  localStorage.setItem(ordersKey, JSON.stringify(orders));
+  if (typeof window.writeUserStorage === 'function') {
+    return window.writeUserStorage(ordersKey, orders, [getUserStorageKey('checkoutForm')].filter(Boolean));
+  }
+  try {
+    if (typeof window.writeUserStorage === 'function') {
+      return window.writeUserStorage(ordersKey, orders, [getUserStorageKey('checkoutForm')].filter(Boolean));
+    }
+    try {
+      localStorage.setItem(ordersKey, JSON.stringify(orders));
+      return true;
+    } catch (error) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function clearTemporaryCheckoutData() {
@@ -211,14 +227,14 @@ function renderLastOrder(order) {
 }
 
 function storeOrderHistory(order) {
-  if (!order) return;
+  if (!order) return false;
 
   const orders = getOrders();
   const exists = orders.some((entry) => entry.id === order.id);
   if (!exists) {
     orders.unshift(order);
-    saveOrders(orders);
   }
+  return saveOrders(orders);
 }
 
 function initializeSuccessPage() {
@@ -236,19 +252,27 @@ function initializeSuccessPage() {
   clearTemporaryCheckoutData();
 
   historyButton.addEventListener('click', () => {
+    let historySaved = true;
     // Memindahkan data pesananAktif ke riwayatPesanan (array di localStorage)
     if (typeof pindahkanKeRiwayatPesanan === 'function') {
-      pindahkanKeRiwayatPesanan();
+      historySaved = pindahkanKeRiwayatPesanan() !== false;
     } else {
       if (order) {
-        storeOrderHistory(order);
+        historySaved = storeOrderHistory(order);
       }
-      const activeKey = getUserStorageKey('pesananAktif');
-      if (activeKey) localStorage.removeItem(activeKey);
-      const lastOrderKey = getUserStorageKey('lastOrder');
-      if (lastOrderKey) {
-        localStorage.removeItem(lastOrderKey);
+      if (historySaved) {
+        const activeKey = getUserStorageKey('pesananAktif');
+        if (activeKey) localStorage.removeItem(activeKey);
+        const lastOrderKey = getUserStorageKey('lastOrder');
+        if (lastOrderKey) {
+          localStorage.removeItem(lastOrderKey);
+        }
       }
+    }
+
+    if (!historySaved) {
+      window.alert('Riwayat pesanan belum dapat disimpan karena penyimpanan browser penuh. Pesanan tetap berada di halaman ini agar tidak hilang. Kosongkan ruang lalu coba lagi.');
+      return;
     }
 
     const checkoutFormKey = getUserStorageKey('checkoutForm');

@@ -47,30 +47,55 @@ function normalizeUserRecord(user) {
 
 function saveRegisteredUsers(users) {
   const normalizedUsers = users.map(normalizeUserRecord);
-  localStorage.setItem(usersKey, JSON.stringify(normalizedUsers));
+  if (typeof window.writeUserStorage === 'function') {
+    return window.writeUserStorage(usersKey, normalizedUsers);
+  }
+  try {
+    localStorage.setItem(usersKey, JSON.stringify(normalizedUsers));
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function getRegisteredUsers() {
-  const raw = localStorage.getItem(usersKey);
+  let raw;
+  let users;
   try {
-    const users = raw ? JSON.parse(raw) : [];
-    const normalizedUsers = users.map(normalizeUserRecord);
-    if (raw && JSON.stringify(normalizedUsers) !== JSON.stringify(users)) {
-      saveRegisteredUsers(normalizedUsers);
-    }
-    return normalizedUsers;
+    raw = localStorage.getItem(usersKey);
+    users = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(users)) return [];
   } catch (error) {
-    console.warn('Data pengguna tidak valid.', error);
-    localStorage.removeItem(usersKey);
+    console.warn('Data pengguna tidak valid dan tidak dapat dibaca.');
+    try { localStorage.removeItem(usersKey); } catch (removeError) { }
     return [];
   }
+
+  const normalizedUsers = users.map(normalizeUserRecord);
+  if (raw && JSON.stringify(normalizedUsers) !== JSON.stringify(users)) {
+    if (!saveRegisteredUsers(normalizedUsers)) {
+      console.warn('Normalisasi data akun belum tersimpan; data akun asli tetap dipertahankan.');
+    }
+  }
+  return normalizedUsers;
 }
 
 function saveActiveUser(user) {
-  localStorage.setItem(activeUserKey, JSON.stringify(user));
-  if (user && user.id) {
-    localStorage.setItem('dikySessionActivity_' + String(user.id), String(Date.now()));
+  const session = Object.assign({}, user);
+  delete session.profileImage;
+  delete session.avatarUrl;
+
+  const userId = session && session.id ? String(session.id) : '';
+  const cleanupKeys = userId ? [`dikyCheckoutForm_${userId}`, `dikyCheckoutSummary_${userId}`] : [];
+  const saved = typeof window.writeUserStorage === 'function'
+    ? window.writeUserStorage(activeUserKey, session, cleanupKeys)
+    : (() => { try { localStorage.setItem(activeUserKey, JSON.stringify(session)); return true; } catch (error) { return false; } })();
+  if (!saved) return false;
+
+  if (userId) {
+    try { localStorage.setItem('dikySessionActivity_' + userId, String(Date.now())); } catch (error) { }
   }
+  return true;
 }
 
 function ensureAdminRecord() {
@@ -78,8 +103,9 @@ function ensureAdminRecord() {
   const existing = users.find((item) => item && item.id === 99);
   if (!existing) {
     users.push({ id: 99, fullName: 'Diky Wahyudi', name: 'Diky Wahyudi', emailAddress: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: 'admin' });
-    saveRegisteredUsers(users);
+    if (!saveRegisteredUsers(users)) return false;
   }
+  return true;
 }
 
 function isValidEmail(email) {
@@ -108,13 +134,11 @@ function buildSession(user, extra = {}) {
     name: user.name || user.fullName,
     fullName: user.fullName || user.name,
     username: user.username || null,
-    profileImage: user.profileImage || user.avatarUrl || null,
     emailAddress: user.emailAddress ? user.emailAddress.toLowerCase() : null,
     phoneNumber: user.phoneNumber || user.whatsappNumber || null,
     gender: user.gender || null,
     birthDate: user.birthDate || null,
     address: user.address || null,
-    avatarUrl: user.avatarUrl || null,
     authProvider: user.authProvider || 'email',
     loggedAt: new Date().toISOString(),
     ...extra
@@ -123,7 +147,12 @@ function buildSession(user, extra = {}) {
 
 function redirectToRegister(profile) {
   if (profile) {
-    localStorage.setItem(pendingGoogleKey, JSON.stringify(profile));
+    try {
+      localStorage.setItem(pendingGoogleKey, JSON.stringify(profile));
+    } catch (error) {
+      showToast('Penyimpanan browser penuh. Kosongkan sebagian ruang lalu coba lagi.');
+      return;
+    }
   }
 
   showToast('Akun belum terdaftar. Mengarahkan ke halaman pendaftaran...');
@@ -156,7 +185,10 @@ function handleLogin(event) {
       return;
     }
     user = { id: 99, fullName: 'Diky Wahyudi', name: 'Diky Wahyudi', emailAddress: ADMIN_EMAIL, role: 'admin' };
-    ensureAdminRecord();
+    if (!ensureAdminRecord()) {
+      showToast('Akun admin tidak dapat disimpan karena penyimpanan browser penuh. Kosongkan ruang lalu coba lagi.');
+      return;
+    }
   } else {
     if (!user) {
       showToast('Email belum terdaftar.');
@@ -171,7 +203,10 @@ function handleLogin(event) {
 
   forceCleanupOldSession();
   const session = buildSession(user, { role: user.role });
-  saveActiveUser(session);
+  if (!saveActiveUser(session)) {
+    showToast('Login belum dapat disimpan karena penyimpanan browser penuh. Kosongkan sebagian ruang lalu coba lagi.');
+    return;
+  }
 
   showToast('Login berhasil! Mengarahkan...');
   window.setTimeout(() => {

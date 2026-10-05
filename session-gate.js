@@ -50,7 +50,13 @@
     redirect('Sesi Anda berakhir setelah 15 menit tidak aktif. Silakan login kembali.');
     return;
   }
-  function touch() { try { localStorage.setItem(activityKey, String(Date.now())); } catch (e) { } }
+  function touch() {
+    try {
+      var current = JSON.parse(localStorage.getItem(ACTIVE) || 'null');
+      if (!current || String(current.id) !== user.id) return;
+      localStorage.setItem(activityKey, String(Date.now()));
+    } catch (e) { }
+  }
 
   ['click', 'keydown', 'touchstart', 'pointerdown', 'mousemove'].forEach(function (eventName) {
     window.addEventListener(eventName, touch, { passive: true });

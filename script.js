@@ -90,7 +90,7 @@ function saveCart(cart) {
   const compactCart = typeof compactOrderItems === 'function' ? compactOrderItems(cart) : cart;
   const savedCart = typeof writeUserStorage === 'function'
     ? writeUserStorage(cartKey, compactCart, [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')])
-    : (() => { try { localStorage.setItem(cartKey, JSON.stringify(compactCart)); return true; } catch (error) { console.warn('Penyimpanan keranjang penuh.', error); return false; } })();
+    : (() => { try { localStorage.setItem(cartKey, JSON.stringify(compactCart)); return true; } catch (error) { return false; } })();
   if (!savedCart) return;
   if (cart && cart.length > 0) {
     if (typeof setUserLastPosition === 'function') setUserLastPosition('keranjang.html');
@@ -245,20 +245,21 @@ function initPage() {
 
     if (oldRaw) {
       console.log('Migrating old static cart data to user-specific structure...');
+      let oldCart;
       try {
-        const oldCart = JSON.parse(oldRaw);
-        if (Array.isArray(oldCart) && oldCart.length > 0) {
-          // Migrate old cart to new user-specific key
-          const newCartKey = getUserStorageKey('cart');
-          if (newCartKey) {
-            localStorage.setItem(newCartKey, JSON.stringify(oldCart));
-            console.log('Cart data migrated to:', newCartKey);
-          }
-        }
-        // Remove old static key
-        localStorage.removeItem(oldCartKey);
+        oldCart = JSON.parse(oldRaw);
       } catch (error) {
-        console.warn('Error migrating old cart data:', error);
+        localStorage.removeItem(oldCartKey);
+        oldCart = null;
+      }
+      if (Array.isArray(oldCart) && oldCart.length > 0) {
+        const newCartKey = getUserStorageKey('cart');
+        const migrated = newCartKey && (typeof writeUserStorage === 'function'
+          ? writeUserStorage(newCartKey, oldCart)
+          : (() => { try { localStorage.setItem(newCartKey, JSON.stringify(oldCart)); return true; } catch (error) { return false; } })());
+        if (migrated) localStorage.removeItem(oldCartKey);
+        else showToast('Keranjang lama belum dapat dipindahkan karena penyimpanan browser penuh. Data keranjang lama tetap dipertahankan.');
+      } else if (Array.isArray(oldCart)) {
         localStorage.removeItem(oldCartKey);
       }
     }

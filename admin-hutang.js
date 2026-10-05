@@ -60,10 +60,26 @@
   function save() {
     var grouped = {};
     debts.forEach(function (debt) { var storageKey = debt.__storageKey || key(); if (storageKey) (grouped[storageKey] || (grouped[storageKey] = [])).push(debt); });
-    Object.keys(grouped).forEach(function (storageKey) {
-      var clean = grouped[storageKey].map(function (debt) { var copy = Object.assign({}, debt); delete copy.__storageKey; return copy; });
-      localStorage.setItem(storageKey, JSON.stringify(clean));
-    });
+    var storageKeys = Object.keys(grouped);
+    var previousValues = {};
+    storageKeys.forEach(function (storageKey) { previousValues[storageKey] = localStorage.getItem(storageKey); });
+    try {
+      storageKeys.forEach(function (storageKey) {
+        var clean = grouped[storageKey].map(function (debt) { var copy = Object.assign({}, debt); delete copy.__storageKey; return copy; });
+        localStorage.setItem(storageKey, JSON.stringify(clean));
+      });
+      return true;
+    } catch (error) {
+      storageKeys.forEach(function (storageKey) {
+        try {
+          if (previousValues[storageKey] === null) localStorage.removeItem(storageKey);
+          else localStorage.setItem(storageKey, previousValues[storageKey]);
+        } catch (restoreError) { }
+      });
+      debts = readAll();
+      window.alert('Perubahan hutang tidak dapat disimpan karena penyimpanan browser penuh. Data sebelumnya dipertahankan bila memungkinkan.');
+      return false;
+    }
   }
   function render() {
     var query = document.getElementById('search-debts').value.toLowerCase().trim();

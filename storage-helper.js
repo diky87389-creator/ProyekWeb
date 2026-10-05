@@ -14,38 +14,6 @@
 
   const ACTIVE_USER_KEY = 'dikyActiveUser';
 
-  function getProductCatalog() {
-    let products = null;
-    try {
-      const parsed = JSON.parse(localStorage.getItem(PRODUCTS_KEY) || 'null');
-      if (Array.isArray(parsed) && parsed.length) products = parsed;
-    } catch (error) {}
-    if (!products) {
-      try {
-        const backup = JSON.parse(localStorage.getItem(PRODUCTS_BACKUP_KEY) || 'null');
-        if (Array.isArray(backup) && backup.length) products = backup;
-      } catch (error) {}
-    }
-    if (!products) products = DEFAULT_PRODUCTS.map(function (product) {
-      return Object.assign({}, product, { units: product.units.map(function (unit) { return Object.assign({}, unit); }) });
-    });
-    try {
-      const json = JSON.stringify(products);
-      localStorage.setItem(PRODUCTS_KEY, json);
-      localStorage.setItem(PRODUCTS_BACKUP_KEY, json);
-    } catch (error) {}
-    return products;
-  }
-
-  function backupProductCatalog(products) {
-    if (!Array.isArray(products) || !products.length) return;
-    try {
-      const json = JSON.stringify(products);
-      localStorage.setItem(PRODUCTS_KEY, json);
-      localStorage.setItem(PRODUCTS_BACKUP_KEY, json);
-    } catch (error) { console.error('Katalog produk tidak dapat disimpan:', error); }
-  }
-
   /**
    * Mendapatkan user yang sedang aktif
    * @returns {Object|null} User object atau null jika tidak ada session valid
@@ -156,6 +124,49 @@
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function isQuotaExceededError(error) {
+    return Boolean(error && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+      || error.code === 22 || error.code === 1014));
+  }
+
+  function compressProfileImageDataUrl(imageDataUrl) {
+    if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image/')) return Promise.resolve(imageDataUrl || null);
+
+    return new Promise(function (resolve) {
+      const image = new Image();
+      image.onload = function () {
+        const maxDimension = 256;
+        const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          resolve(null);
+          return;
+        }
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        try {
+          let smallest = imageDataUrl;
+          [0.72, 0.52, 0.36].forEach(function (quality) {
+            const candidate = canvas.toDataURL('image/jpeg', quality);
+            if (candidate.length < smallest.length) smallest = candidate;
+          });
+          resolve(smallest.length < imageDataUrl.length ? smallest : imageDataUrl);
+        } catch (error) {
+          resolve(null);
+        }
+      };
+      image.onerror = function () { resolve(null); };
+      image.src = imageDataUrl;
+    });
   }
 
   function toSafeNumber(value, fallback) {
@@ -483,7 +494,9 @@
         localStorage.setItem(key, json);
         return true;
       } catch (retryError) {
-        console.warn('Penyimpanan lokal penuh; data sementara tidak disimpan.', retryError);
+        if (!isQuotaExceededError(retryError)) {
+          console.warn('Data lokal tidak dapat disimpan setelah percobaan ulang.');
+        }
         return false;
       }
     }
@@ -548,7 +561,7 @@
     let activeOrder = getPesananAktif();
     if (activeOrder) {
       const userRiwayatKey = getUserStorageKey('riwayatPesanan');
-      if (!userRiwayatKey) return;
+      if (!userRiwayatKey) return false;
       let riwayat = [];
       const rawRiwayat = localStorage.getItem(userRiwayatKey);
       if (rawRiwayat) {
@@ -563,7 +576,8 @@
       const orderId = activeOrder.id || activeOrder.orderId;
       const exists = orderId ? riwayat.some(item => (item && (item.id || item.orderId)) === orderId) : false;
       if (!exists) riwayat.unshift(activeOrder);
-      localStorage.setItem(userRiwayatKey, JSON.stringify(riwayat));
+      const cleanupKeys = [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')].filter(Boolean);
+      if (!writeUserStorage(userRiwayatKey, riwayat, cleanupKeys)) return false;
 
       {
         const userOrdersKey = getUserStorageKey('orders');
@@ -579,12 +593,7 @@
           if (!orderId || !userOrders.some(item => (item && (item.id || item.orderId)) === orderId)) {
             userOrders.unshift(activeOrder);
           }
-          localStorage.setItem(userOrdersKey, JSON.stringify(userOrders));
-        }
-
-        const userRiwayatKey = getUserStorageKey('riwayatPesanan');
-        if (userRiwayatKey) {
-          localStorage.setItem(userRiwayatKey, JSON.stringify(riwayat));
+          if (!writeUserStorage(userOrdersKey, userOrders, cleanupKeys)) return false;
         }
       }
     }
@@ -598,6 +607,148 @@
       if (lastOrderKey) localStorage.removeItem(lastOrderKey);
       clearUserLastPosition();
     }
+    return true;
+  }
+
+  /**
+   * ==========================================
+   * Pembatalan/Penghapusan Pesanan Lintas Halaman
+   * ==========================================
+   * Dipakai oleh admin-orders.html (tombol "Hapus") agar satu order benar-benar
+   * hilang di SEMUA lokasi yang menyimpan order yang sama, yaitu:
+   *   1. Arsip operasional admin : dikyOrders_<userId>       (dibaca admin-orders.html)
+   *   2. Riwayat tampilan user   : riwayatPesanan_<userId>   (dibaca orders.html)
+   *   3. Snapshot pesanan aktif  : pesananAktif_<userId>     (dibaca success.html)
+   *   4. Snapshot order terakhir : dikyLastOrder_<userId>    (dibaca success.html)
+   *   5. Pesanan baru (katalog)  : pesananBaru_<userId>
+   *   6. Keranjang / item checkout yang belum dikonfirmasi
+   * Cara memakai: hapusPesananOrderLintasArsip({ orderId: 'ORD-...', ownerUserId: '123' })
+   *
+   * @param {{orderId?: string, ownerUserId?: string}} options
+   * @returns {{removedOrderIds: string[], touchedKeys: string[]}}
+   */
+  function hapusPesananOrderLintasArsip(options) {
+    const opts = options || {};
+    const orderId = opts.orderId ? String(opts.orderId) : '';
+    const ownerUserId = opts.ownerUserId ? String(opts.ownerUserId) : '';
+    const result = { removedOrderIds: orderId ? [orderId] : [], touchedKeys: [] };
+    if (!orderId) return result;
+
+    const matchesOrder = function (entry) {
+      return Boolean(entry) && String(entry.id || entry.orderId || '') === orderId;
+    };
+    const wasRemoved = function (entries) { return entries.some(matchesOrder); };
+
+    const readArray = function (key) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) { return []; }
+    };
+    const writeArray = function (key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        result.touchedKeys.push(key);
+        return true;
+      } catch (error) { return false; }
+    };
+
+    const keysToScan = [];
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        // Arsip admin/hutang memakai prefix + userId; filter pemilik bila diberikan.
+        const isUserScoped = /^(dikyOrders_|riwayatPesanan_|pesananAktif_|dikyLastOrder_|pesananBaru_|dikyCart_|dikyCheckoutItems_)/.test(key);
+        if (!isUserScoped) continue;
+        if (ownerUserId) {
+          const suffix = key.slice(key.indexOf('_') + 1);
+          if (suffix !== ownerUserId) continue;
+        }
+        keysToScan.push(key);
+      }
+    } catch (error) { return result; }
+
+    keysToScan.forEach(function (key) {
+      let parsed;
+      try { parsed = JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return; }
+      if (parsed == null) return;
+
+      if (Array.isArray(parsed)) {
+        if (!wasRemoved(parsed)) return;
+        writeArray(key, parsed.filter(function (entry) { return !matchesOrder(entry); }));
+        return;
+      }
+
+      if (typeof parsed === 'object') {
+        // Snapshot tunggal (pesananAktif / lastOrder / pesananBaru).
+        if (matchesOrder(parsed)) {
+          try { localStorage.removeItem(key); result.touchedKeys.push(key); } catch (error) { }
+          return;
+        }
+        // Snapshot dengan daftar items (pesananBaru.items) — buang bila item pesanan cocok.
+        if (Array.isArray(parsed.items) && wasRemoved(parsed.items)) {
+          const items = parsed.items.filter(function (entry) { return !matchesOrder(entry); });
+          if (!items.length) {
+            try { localStorage.removeItem(key); result.touchedKeys.push(key); } catch (error) { }
+          } else {
+            parsed.items = items;
+            writeArray(key, parsed);
+          }
+        }
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Membatalkan pesanan yang sedang berada di halaman checkout.html.
+   * Pesanan pada tahap ini BELUM menjadi arsip admin (dikyOrders_<userId> belum ada).
+   * Yang dibersihkan hanya sumber pesanan milik user aktif, sehingga ringkasan
+   * checkout menjadi kosong dan tidak ada pesanan yang diteruskan ke success.html.
+   *
+   * @returns {boolean} True bila ada data pesanan checkout yang dibersihkan.
+   */
+  function hapusPesananDariCheckout() {
+    const isObject = function (value) { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); };
+
+    const checkoutItemsKey = getUserStorageKey('checkoutItems');
+    const cartKey = getUserStorageKey('cart');
+    const checkoutSummaryKey = getUserStorageKey('checkoutSummary');
+    const checkoutFormKey = getUserStorageKey('checkoutForm');
+    const pesananBaruKey = getUserStorageKey('pesananBaru');
+
+    let cartItems = [];
+    let checkoutItems = [];
+    let newOrderItems = [];
+    try { cartItems = readJsonArray(cartKey); } catch (error) { cartItems = []; }
+    try { checkoutItems = readJsonArray(checkoutItemsKey); } catch (error) { checkoutItems = []; }
+    try {
+      const rawNew = pesananBaruKey ? JSON.parse(localStorage.getItem(pesananBaruKey) || 'null') : null;
+      if (isObject(rawNew) && Array.isArray(rawNew.items)) newOrderItems = rawNew.items;
+    } catch (error) { newOrderItems = []; }
+
+    const hadData = cartItems.length > 0 || checkoutItems.length > 0 || newOrderItems.length > 0;
+
+    // Hanya data sementara milik user aktif yang dihapus. pesananAktif / lastOrder /
+    // arsip admin TIDAK disentuh karena belum terbentuk pada tahap checkout.
+    [checkoutItemsKey, checkoutSummaryKey, checkoutFormKey].forEach(function (key) {
+      if (key) { try { localStorage.removeItem(key); } catch (error) { } }
+    });
+    if (pesananBaruKey) { try { localStorage.removeItem(pesananBaruKey); } catch (error) { } }
+    if (cartKey) { try { localStorage.removeItem(cartKey); } catch (error) { } }
+
+    if (typeof clearUserLastPosition === 'function') clearUserLastPosition();
+    return hadData;
+  }
+
+  function readJsonArray(key) {
+    if (!key) return [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) { return []; }
   }
 
   /**
@@ -728,6 +879,8 @@
   window.clearUserLastPosition = clearUserLastPosition;
   window.getActiveOrders = getActiveOrders;
   window.escapeHTML = escapeHTML;
+  window.isQuotaExceededError = isQuotaExceededError;
+  window.compressProfileImageDataUrl = compressProfileImageDataUrl;
   window.toSafeNumber = toSafeNumber;
   window.normalizeCart = normalizeCart;
   window.NavigationGuard = NavigationGuard;
@@ -746,6 +899,8 @@
   window.getActiveOrder = getPesananAktif;
   window.pindahkanKeRiwayatPesanan = pindahkanKeRiwayatPesanan;
   window.moveToOrderHistory = pindahkanKeRiwayatPesanan;
+  window.hapusPesananOrderLintasArsip = hapusPesananOrderLintasArsip;
+  window.hapusPesananDariCheckout = hapusPesananDariCheckout;
   window.tampilkanTombolPantauPesanan = tampilkanTombolPantauPesanan;
   window.displayNotificationButton = tampilkanTombolPantauPesanan;
 

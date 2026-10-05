@@ -95,7 +95,7 @@ function saveCart(cart) {
   const compactCart = typeof compactOrderItems === 'function' ? compactOrderItems(cart) : cart;
   const savedCart = typeof writeUserStorage === 'function'
     ? writeUserStorage(cartKey, compactCart, [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')])
-    : (() => { try { localStorage.setItem(cartKey, JSON.stringify(compactCart)); return true; } catch (error) { console.warn('Penyimpanan keranjang penuh.', error); return false; } })();
+    : (() => { try { localStorage.setItem(cartKey, JSON.stringify(compactCart)); return true; } catch (error) { return false; } })();
   if (!savedCart) return;
   // Pesanan baru berdiri sendiri; simpan hanya satu snapshot minimal per user.
   if (typeof simpanPesananBaru === 'function') {
@@ -130,7 +130,7 @@ function saveCheckoutSummary(cart) {
   if (typeof writeUserStorage === 'function') {
     writeUserStorage(summaryKey, summary, [getUserStorageKey('checkoutForm')]);
   } else {
-    try { localStorage.setItem(summaryKey, JSON.stringify(summary)); } catch (error) { console.warn('Summary checkout tidak dapat disimpan.', error); }
+    try { localStorage.setItem(summaryKey, JSON.stringify(summary)); } catch (error) { }
   }
 }
 
@@ -499,7 +499,7 @@ function initializeCartPage() {
 
       const savedCheckout = typeof writeUserStorage === 'function'
         ? writeUserStorage(checkoutItemsKey, typeof compactOrderItems === 'function' ? compactOrderItems(existing) : existing, [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')])
-        : (() => { try { localStorage.setItem(checkoutItemsKey, JSON.stringify(existing)); return true; } catch (error) { console.warn('Penyimpanan checkout penuh.', error); return false; } })();
+        : (() => { try { localStorage.setItem(checkoutItemsKey, JSON.stringify(existing)); return true; } catch (error) { return false; } })();
       if (!savedCheckout) {
         alert('Penyimpanan perangkat penuh. Hapus data sementara browser lalu coba lagi.');
         return;

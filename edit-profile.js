@@ -412,10 +412,22 @@ function handlePhotoSelection(event) {
   profileImageReadPending = true;
   const reader = new FileReader();
   reader.onload = () => {
-    profileImageValue = String(reader.result || '');
-    profileImageReadPending = false;
-    setProfileImage(profileImageValue);
-    updatePhotoDirtyState();
+    const source = String(reader.result || '');
+    const compress = typeof window.compressProfileImageDataUrl === 'function'
+      ? window.compressProfileImageDataUrl(source)
+      : Promise.resolve(source);
+    compress.then((compressedImage) => {
+      if (!compressedImage) throw new Error('Foto tidak dapat diperkecil.');
+      profileImageValue = compressedImage;
+      setProfileImage(profileImageValue);
+      updatePhotoDirtyState();
+    }).catch(() => {
+      photoField.value = '';
+      window.alert('Foto profil gagal diproses. Pilih foto lain atau lanjut tanpa foto.');
+    }).finally(() => {
+      profileImageReadPending = false;
+      updatePhotoDirtyState();
+    });
   };
   reader.onerror = () => {
     profileImageReadPending = false;
@@ -427,7 +439,40 @@ function handlePhotoSelection(event) {
   reader.readAsDataURL(file);
 }
 
-function buildUpdatedIdentities(currentPhone, newPhone, currentEmail) {
+function hasArchivedPhoneConflict(userId, currentPhone, currentEmail, newPhone) {
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const storageKey = localStorage.key(index);
+    if (!storageKey || (!storageKey.startsWith('dikyOrders_') && !storageKey.startsWith('dikyHutang_'))) continue;
+
+    let records;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      records = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []);
+    } catch (error) {
+      continue;
+    }
+
+    const keyOwnerId = storageKey.startsWith('dikyOrders_')
+      ? storageKey.slice('dikyOrders_'.length)
+      : storageKey.slice('dikyHutang_'.length);
+    for (const record of records) {
+      if (!record || typeof record !== 'object') continue;
+      const customer = record.customer && typeof record.customer === 'object' ? record.customer : {};
+      const archivedPhone = normalizePhone(record.phone || record.phoneNumber || customer.phone || customer.phoneNumber);
+      if (archivedPhone !== newPhone) continue;
+
+      const archivedEmail = normalizeEmail(record.email || record.emailAddress || customer.email || customer.emailAddress);
+      const archivedOwnerId = record.userId || customer.userId || keyOwnerId;
+      const belongsToCurrentUser = String(archivedOwnerId) === String(userId)
+        || (!record.userId && !customer.userId && archivedEmail && archivedEmail === currentEmail)
+        || (!record.userId && !customer.userId && currentPhone && archivedPhone === currentPhone);
+      if (!belongsToCurrentUser) return true;
+    }
+  }
+  return false;
+}
+
+function buildUpdatedIdentities(userId, currentPhone, newPhone, currentEmail) {
   let identities;
   try {
     const raw = localStorage.getItem(USED_IDENTITIES_KEY);
@@ -440,6 +485,9 @@ function buildUpdatedIdentities(currentPhone, newPhone, currentEmail) {
   }
 
   const belongsToUser = (identity) => {
+    if (identity.userId != null && String(identity.userId) !== '') {
+      return String(identity.userId) === String(userId);
+    }
     const identityPhone = getIdentityPhone(identity);
     const identityEmail = getIdentityEmail(identity);
     return (currentEmail && identityEmail === currentEmail) || (currentPhone && identityPhone === currentPhone);
@@ -451,13 +499,20 @@ function buildUpdatedIdentities(currentPhone, newPhone, currentEmail) {
   if (conflictingIdentity) {
     throw new Error('Nomor telepon tersebut pernah tercatat pada identitas lain. Gunakan nomor yang berbeda.');
   }
+  if (hasArchivedPhoneConflict(userId, currentPhone, currentEmail, newPhone)) {
+    throw new Error('Nomor telepon tersebut tercatat pada transaksi akun lain. Gunakan nomor yang berbeda.');
+  }
 
   const updated = identities.map((identity) => {
     if (!identity || typeof identity !== 'object' || !belongsToUser(identity)) return identity;
-    return { ...identity, phone: newPhone, email: getIdentityEmail(identity) || currentEmail };
+    return identity.userId ? identity : { ...identity, userId: String(userId) };
   });
-  if (!updated.some((identity) => identity && typeof identity === 'object' && belongsToUser(identity))) {
-    updated.push({ phone: newPhone, email: currentEmail || null, usedAt: new Date().toISOString() });
+  const exactIdentityExists = updated.some((identity) => identity && typeof identity === 'object'
+    && String(identity.userId || '') === String(userId)
+    && getIdentityPhone(identity) === newPhone
+    && getIdentityEmail(identity) === currentEmail);
+  if (!exactIdentityExists) {
+    updated.push({ userId: String(userId), phone: newPhone, email: currentEmail || null, usedAt: new Date().toISOString() });
   }
   return updated;
 }
@@ -466,9 +521,7 @@ function restoreStorageValue(key, value) {
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
-  } catch (error) {
-    console.error(`Gagal memulihkan penyimpanan ${key}.`, error);
-  }
+  } catch (error) { }
 }
 
 function validateForm() {
@@ -498,7 +551,7 @@ function validateForm() {
   return { fullName, phoneNumber, birthDate };
 }
 
-function handleSaveProfile(event) {
+async function handleSaveProfile(event) {
   event.preventDefault();
   const pendingField = fieldControlStates.find((state) => state.hasUnsavedChanges());
   if (pendingField) {
@@ -526,6 +579,22 @@ function handleSaveProfile(event) {
 
   const values = validateForm();
   if (!values) return;
+
+  if (typeof profileImageValue === 'string' && profileImageValue.startsWith('data:image/')) {
+    const compactImage = typeof window.compressProfileImageDataUrl === 'function'
+      ? await window.compressProfileImageDataUrl(profileImageValue)
+      : profileImageValue;
+    if (!compactImage) {
+      window.alert('Foto profil tidak dapat diperkecil. Coba pilih foto yang lain atau hapus foto tersebut.');
+      editPhotoButton.focus();
+      return;
+    }
+    if (compactImage !== profileImageValue) {
+      profileImageValue = compactImage;
+      profileImageChanged = true;
+      setProfileImage(profileImageValue);
+    }
+  }
 
   const currentEmail = normalizeEmail(registeredUser.emailAddress || registeredUser.email || activeUser.emailAddress);
   const currentPhone = normalizePhone(registeredUser.phoneNumber || registeredUser.whatsappNumber || activeUser.phoneNumber);
@@ -561,7 +630,7 @@ function handleSaveProfile(event) {
   let updatedIdentities = null;
   if (phoneChanged) {
     try {
-      updatedIdentities = buildUpdatedIdentities(currentPhone, values.phoneNumber, currentEmail);
+      updatedIdentities = buildUpdatedIdentities(activeUser.id, currentPhone, values.phoneNumber, currentEmail);
     } catch (error) {
       phoneField.classList.add('field-error');
       phoneField.focus();
@@ -602,10 +671,8 @@ function handleSaveProfile(event) {
     birthDate: values.birthDate,
     address: fullAddress
   };
-  if (profileImageChanged) {
-    updatedSession.profileImage = profileImageValue;
-    updatedSession.avatarUrl = profileImageValue;
-  }
+  delete updatedSession.profileImage;
+  delete updatedSession.avatarUrl;
   if (latitudeField.value !== '') updatedSession.latitude = Number(latitudeField.value);
   else delete updatedSession.latitude;
   if (longitudeField.value !== '') updatedSession.longitude = Number(longitudeField.value);
@@ -714,7 +781,7 @@ function validatePhoneChange(value) {
 
   const currentEmail = normalizeEmail(registeredUser.emailAddress || registeredUser.email || activeUser.emailAddress);
   try {
-    buildUpdatedIdentities(currentPhone, normalizedPhone, currentEmail);
+    buildUpdatedIdentities(activeUser.id, currentPhone, normalizedPhone, currentEmail);
   } catch (error) {
     return error.message;
   }

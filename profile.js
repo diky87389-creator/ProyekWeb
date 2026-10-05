@@ -13,6 +13,8 @@ const userIdField = document.getElementById('user-id');
 const historyLoginTimeField = document.getElementById('history-login-time');
 const logoutFastButton = document.getElementById('logout-fast-button');
 const logoutCleanButton = document.getElementById('logout-clean-button');
+const REGISTERED_USERS_KEY = 'dikyRegisteredUsers';
+const USED_IDENTITIES_KEY = 'dikyUsedIdentities';
 
 function normalizeActiveUser(user) {
   const { whatsappNumber, ...rest } = user;
@@ -184,6 +186,57 @@ function hasActiveOrdersBeforeLogout() {
   return false;
 }
 
+function preserveUserIdentityBeforeCleanLogout(userId, user) {
+  const phone = String(user.phoneNumber || user.whatsappNumber || '').replace(/[^0-9]/g, '');
+  const email = String(user.emailAddress || user.email || '').trim().toLowerCase();
+  if (!phone && !email) return true;
+
+  let identities;
+  try {
+    const raw = localStorage.getItem(USED_IDENTITIES_KEY);
+    identities = raw === null ? [] : JSON.parse(raw);
+  } catch (error) {
+    console.warn('Jejak identitas tidak dapat dibaca sebelum logout bersih.', error);
+    return false;
+  }
+  if (!Array.isArray(identities)) return false;
+
+  let exactIdentityExists = false;
+  identities.forEach((identity) => {
+    if (!identity || typeof identity !== 'object') return;
+    const identityPhone = String(identity.phone || identity.phoneNumber || identity.whatsappNumber || '').replace(/[^0-9]/g, '');
+    const identityEmail = String(identity.email || identity.emailAddress || '').trim().toLowerCase();
+    const ownerId = identity.userId == null ? '' : String(identity.userId);
+    const belongsToUser = ownerId === String(userId) || (!ownerId && (
+      (phone && identityPhone === phone) || (email && identityEmail === email)
+    ));
+    if (!belongsToUser) return;
+    if (!ownerId) identity.userId = String(userId);
+    if (identityPhone === phone && identityEmail === email) exactIdentityExists = true;
+  });
+
+  if (!exactIdentityExists) {
+    identities.push({
+      userId: String(userId),
+      phone: phone || null,
+      email: email || null,
+      usedAt: new Date().toISOString()
+    });
+  }
+
+  try {
+    localStorage.setItem(USED_IDENTITIES_KEY, JSON.stringify(identities));
+    const saved = JSON.parse(localStorage.getItem(USED_IDENTITIES_KEY) || '[]');
+    return Array.isArray(saved) && saved.some((identity) => identity
+      && String(identity.userId || '') === String(userId)
+      && String(identity.phone || '') === phone
+      && String(identity.email || '') === email);
+  } catch (error) {
+    console.warn('Identitas terbaru tidak dapat dipertahankan sebelum logout bersih.', error);
+    return false;
+  }
+}
+
 function deleteUserAccountRecord(userId) {
   // Logout Bersih Total menghapus SELURUH data akun milik user ini dari daftar
   // akun terdaftar: Nama Lengkap, Username, Foto Profil, Nomor Telepon, Email,
@@ -193,21 +246,26 @@ function deleteUserAccountRecord(userId) {
   //
   // PENGAMAN PENTING: akun admin / role 'admin' TIDAK PERNAH dihapus, baik akun
   // default dari login.js maupun akun lain yang berperan admin.
-  if (!userId) return;
+  if (!userId) return false;
   try {
-    const users = JSON.parse(localStorage.getItem('dikyRegisteredUsers') || '[]');
-    if (!Array.isArray(users)) return;
+    const users = JSON.parse(localStorage.getItem(REGISTERED_USERS_KEY) || '[]');
+    if (!Array.isArray(users)) return false;
+    const account = users.find((record) => record && String(record.id || '') === String(userId));
+    if (!account) return false;
+    if (String(account.role || '').trim().toLowerCase() === 'admin') return true;
     const remaining = users.filter((record) => {
       if (!record || String(record.id || '') !== String(userId)) return true; // bukan user ini: simpan
       const isAdmin = String(record.role || '').trim().toLowerCase() === 'admin';
       return isAdmin; // akun admin selalu dipertahankan
     });
-    if (remaining.length !== users.length) {
-      localStorage.setItem('dikyRegisteredUsers', JSON.stringify(remaining));
-      console.log('Logout Bersih Total: seluruh data akun user', userId, 'dihapus dari daftar akun.');
-    }
+    localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(remaining));
+    const saved = JSON.parse(localStorage.getItem(REGISTERED_USERS_KEY) || '[]');
+    const deleted = Array.isArray(saved) && !saved.some((record) => record && String(record.id || '') === String(userId));
+    if (deleted) console.log('Logout Bersih Total: seluruh data akun user', userId, 'dihapus dari daftar akun.');
+    return deleted;
   } catch (error) {
-    console.warn('Gagal menghapus data akun user.', error);
+    console.warn('Gagal menghapus data akun user.');
+    return false;
   }
 }
 
@@ -228,6 +286,17 @@ function logoutClean() {
 
   const userId = String(user.id);
   console.log('Logout Bersih Total: membersihkan data pribadi user', userId);
+
+  const registeredProfile = getRegisteredProfile(user);
+  const latestProfile = Object.assign({}, user, registeredProfile || {});
+  if (!preserveUserIdentityBeforeCleanLogout(userId, latestProfile)) {
+    window.alert('Logout Bersih Total dibatalkan karena nomor telepon/email terbaru tidak dapat dicatat dengan aman. Sesi Anda tetap aktif.');
+    return;
+  }
+  if (!deleteUserAccountRecord(userId)) {
+    window.alert('Logout Bersih Total dibatalkan karena data akun tidak berhasil dihapus. Sesi Anda tetap aktif.');
+    return;
+  }
 
   // Key orders dan hutang sengaja tidak dihapus karena merupakan arsip admin.
   const privateKeys = [
@@ -251,14 +320,6 @@ function logoutClean() {
       console.warn(`Gagal menghapus ${key}`, error);
     }
   });
-
-  // Hapus seluruh record akun user (Nama Lengkap, Username, Foto Profil, Nomor
-  // Telepon, Email, Alamat otomatis GPS, Detail Alamat Lengkap, Kata Sandi, dan
-  // Konfirmasi Kata Sandi) dari daftar akun terdaftar. Ini juga menghapus alamat
-  // yang terbaca/disinkron ke checkout.html, orders.html, keranjang.html, dan
-  // success.html karena semua halaman itu mengambil alamat dari field akun ini.
-  // Akun admin (role 'admin') tidak pernah dihapus.
-  deleteUserAccountRecord(userId);
 
   // Jangan mengubah dikyOrders_* (arsip admin-orders.html) dan dikyHutang_
   // (arsip admin-hutang.html & admin-dashboard.html), serta katalog produk

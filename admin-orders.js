@@ -70,10 +70,26 @@
       var storageKey = order.__storageKey || orderKey();
       if (storageKey) (grouped[storageKey] || (grouped[storageKey] = [])).push(order);
     });
-    Object.keys(grouped).forEach(function (storageKey) {
-      var cleanOrders = grouped[storageKey].map(cleanOrder);
-      localStorage.setItem(storageKey, JSON.stringify(cleanOrders));
-    });
+    var storageKeys = Object.keys(grouped);
+    var previousValues = {};
+    storageKeys.forEach(function (storageKey) { previousValues[storageKey] = localStorage.getItem(storageKey); });
+    try {
+      storageKeys.forEach(function (storageKey) {
+        var cleanOrders = grouped[storageKey].map(cleanOrder);
+        localStorage.setItem(storageKey, JSON.stringify(cleanOrders));
+      });
+      return true;
+    } catch (error) {
+      storageKeys.forEach(function (storageKey) {
+        try {
+          if (previousValues[storageKey] === null) localStorage.removeItem(storageKey);
+          else localStorage.setItem(storageKey, previousValues[storageKey]);
+        } catch (restoreError) { }
+      });
+      orders = readAllOrders();
+      window.alert('Perubahan pesanan tidak dapat disimpan karena penyimpanan browser penuh. Data sebelumnya dipertahankan bila memungkinkan.');
+      return false;
+    }
   }
   function items(order) { return Array.isArray(order.cart) ? order.cart : (Array.isArray(order.items) ? order.items : []); }
   function total(order) { var value = Number(order.totalPrice); if (Number.isFinite(value) && value >= 0) return value; return items(order).reduce(function (s, i) { return s + Math.max(0, Number(i.price) || 0) * Math.max(0, Number(i.quantity || i.qty) || 0); }, 0); }
@@ -132,7 +148,9 @@
         updatedAt: new Date().toISOString()
       };
       var locationKey = courierLocationKey(order.id);
-      if (locationKey) localStorage.setItem(locationKey, JSON.stringify(order.courierLocation));
+      if (locationKey) {
+        try { localStorage.setItem(locationKey, JSON.stringify(order.courierLocation)); } catch (error) { }
+      }
       save();
     }, function (error) {
       console.warn('GPS kurir tidak tersedia untuk pesanan ' + order.id + '.', error);
@@ -141,7 +159,9 @@
   function applyShippedStatus(order, location) {
     if (location) {
       var locationKey = courierLocationKey(order.id);
-      if (locationKey) localStorage.setItem(locationKey, JSON.stringify(location));
+      if (locationKey) {
+        try { localStorage.setItem(locationKey, JSON.stringify(location)); } catch (error) { }
+      }
       order.courierLocation = location;
     }
     order.status = 'dikirim';
@@ -218,14 +238,54 @@
   function detail(id) { var order = orders.find(function (o) { return String(o.id) === String(id); }); if (!order) return; var c = order.customer || {}; var identity = resolveIdentity(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierText = getAssignedCourier(order); document.getElementById('order-detail').innerHTML = '<div class="detail"><p><strong>ID:</strong> ' + esc(order.id) + '</p><p><strong>Pelanggan:</strong> ' + esc(c.name || order.customerName || '-') + '</p><p><strong>Jenis kelamin:</strong> ' + esc(identity.gender) + '</p><p><strong>Tanggal lahir:</strong> ' + esc(identity.birthDate) + '</p><p><strong>Telepon:</strong> ' + esc(c.phone || order.phone || '-') + '</p><p><strong>Alamat:</strong> ' + esc(c.address || order.address || '-') + '</p><p><strong>Kurir yang ditugaskan:</strong> ' + esc(courierText) + '</p>' + (mapsLink ? '<p><strong>Rute:</strong> <a href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a></p>' : '') + '<p><strong>Status:</strong> ' + esc(validStatus(order.status)) + '</p><p><strong>Total:</strong> ' + money(total(order)) + '</p><ul class="detail-items">' + items(order).map(function (i) { return '<li>' + esc(i.name) + ' × ' + esc(i.quantity || i.qty || 0) + '</li>'; }).join('') + '</ul></div>'; if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', ''); }
   function deleteOrder(id) {
     var order = orders.find(function (item) { return String(item.id) === String(id); });
-    if (!order || !window.confirm('Hapus pesanan ini dari panel admin? Riwayat user tidak akan diubah.')) return;
-    orders = orders.filter(function (item) { return item !== order; });
+    if (!order) return;
+    if (!window.confirm('Hapus pesanan ini? Pesanan akan hilang dari panel admin SEKALIGUS dari halaman success.html, tab Dikemas/Dikirim, dan riwayat pesanan pelanggan. Lanjutkan?')) return;
+
+    // Pembatalan terpusat: satu order dihapus dari SEMUA arsip (admin + riwayat user
+    // + snapshot success.html) memakai helper global yang sama.
+    var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : '');
+    if (typeof window.hapusPesananOrderLintasArsip === 'function') {
+      window.hapusPesananOrderLintasArsip({ orderId: String(order.id), ownerUserId: ownerId });
+    } else {
+      // Fallback aman bila helper belum termuat: bersihkan arsip admin + riwayat user.
+      orders = orders.filter(function (item) { return item !== order; });
+      try {
+        var historyKey = ownerId ? 'riwayatPesanan_' + ownerId : '';
+        if (historyKey) {
+          var historyRaw = JSON.parse(localStorage.getItem(historyKey) || '[]');
+          if (Array.isArray(historyRaw)) {
+            localStorage.setItem(historyKey, JSON.stringify(historyRaw.filter(function (entry) {
+              return String(entry && (entry.id || entry.orderId) || '') !== String(order.id);
+            })));
+          }
+        }
+      } catch (error) { }
+    }
+
+    // Hentikan pelacakan kurir & bersihkan lokasi GPS order yang dibatalkan.
+    clearCourierLocation(order.id);
+    orders = readAllOrders();
     save(); render();
   }
   function deleteAllOrders() {
     if (!orders.length || !window.confirm('Hapus seluruh pesanan dari panel admin? Riwayat pesanan user tetap aman.')) return;
     var keys = Array.from(new Set(orders.map(function (order) { return order.__storageKey; }).filter(Boolean)));
-    keys.forEach(function (storageKey) { localStorage.setItem(storageKey, '[]'); });
+    var previousValues = {};
+    keys.forEach(function (storageKey) { previousValues[storageKey] = localStorage.getItem(storageKey); });
+    try {
+      keys.forEach(function (storageKey) { localStorage.setItem(storageKey, '[]'); });
+    } catch (error) {
+      keys.forEach(function (storageKey) {
+        try {
+          if (previousValues[storageKey] === null) localStorage.removeItem(storageKey);
+          else localStorage.setItem(storageKey, previousValues[storageKey]);
+        } catch (restoreError) { }
+      });
+      orders = readAllOrders();
+      window.alert('Riwayat tidak dapat dihapus karena penyimpanan browser penuh. Data lama tetap dipertahankan bila memungkinkan.');
+      render();
+      return;
+    }
     orders = []; render();
   }
   orderList.addEventListener('change', function (e) {

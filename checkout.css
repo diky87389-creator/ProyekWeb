@@ -508,3 +508,30 @@ button, .button, a.button { min-height: 44px; }
   .summary-item-total { grid-column: 2; text-align: left; }
   .button, button { width: 100%; }
 }
+
+/* Tombol "Hapus Pesanan Ini" pada ringkasan checkout.
+   Tombol ini membatalkan pesanan yang masih berada pada tahap checkout
+   (belum menjadi arsip admin), sehingga ringkasan menjadi kosong. */
+.checkout-cancel-row {
+  margin: 0.75rem 0 1rem;
+}
+
+.button-danger {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #ffffff;
+  border: 1px solid transparent;
+  width: 100%;
+}
+
+.button-danger:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.button-danger:active {
+  transform: translateY(0);
+}
+
+.button-danger[hidden] {
+  display: none;
+}

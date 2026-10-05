@@ -4,6 +4,7 @@ const checkoutForm = document.getElementById('checkout-form');
 const confirmButton = document.getElementById('confirm-button');
 const customerAddressField = document.getElementById('customer-address');
 const addressFieldGroup = document.getElementById('address-field-group');
+const cancelCheckoutButton = document.getElementById('cancel-checkout-button');
 const deliveryMethodInputs = checkoutForm.querySelectorAll('input[name="deliveryMethod"]');
 
 function getCurrentRegisteredUser() {
@@ -328,6 +329,42 @@ function validateForm() {
   return true;
 }
 
+function compactProfileImageForOrder(imageSource) {
+  if (typeof imageSource !== 'string' || !imageSource.startsWith('data:image/')) {
+    return Promise.resolve(imageSource || null);
+  }
+  if (imageSource.length <= 16000) return Promise.resolve(imageSource);
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const maxDimension = 96;
+      const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        resolve(null);
+        return;
+      }
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+      try {
+        const thumbnail = canvas.toDataURL('image/jpeg', 0.62);
+        resolve(thumbnail.length < imageSource.length ? thumbnail : null);
+      } catch (error) {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = imageSource;
+  });
+}
+
 function buildOrderData() {
   const rawCart = getCart();
   const cart = typeof compactOrderItems === 'function' ? compactOrderItems(rawCart) : rawCart;
@@ -414,6 +451,10 @@ async function submitOrder() {
   await new Promise(resolve => setTimeout(resolve, 300));
 
   const orderData = buildOrderData();
+  const orderProfileImage = await compactProfileImageForOrder(orderData.profileImage);
+  orderData.profileImage = orderProfileImage;
+  orderData.customer.profileImage = orderProfileImage;
+
   // Checkout adalah pesanan baru dan tidak boleh menghapus pesananAktif.
   if (typeof simpanPesananBaru === 'function') {
     simpanPesananBaru(orderData);
@@ -421,7 +462,14 @@ async function submitOrder() {
   const paymentMethod = getSelectedPaymentMethod();
 
   if (paymentMethod === 'Hutang') {
-    saveDebtFromCheckout(orderData);
+    const debtSaved = await saveDebtFromCheckout(orderData);
+    if (!debtSaved) {
+      if (typeof hapusPesananBaru === 'function') hapusPesananBaru();
+      modal.classList.remove('active');
+      button.disabled = false;
+      window.alert('Catatan Hutang tidak dapat disimpan karena penyimpanan browser penuh. Pesanan belum dilanjutkan. Hapus sebagian data browser lama atau coba lagi.');
+      return;
+    }
   }
 
   // Save active order using simpanPesananAktif helper
@@ -432,7 +480,7 @@ async function submitOrder() {
     if (activeKey && typeof writeUserStorage === 'function') {
       writeUserStorage(activeKey, orderData, [getUserStorageKey('checkoutForm')]);
     } else if (activeKey) {
-      try { localStorage.setItem(activeKey, JSON.stringify(orderData)); } catch (error) { console.warn('Pesanan aktif tidak dapat disimpan.', error); }
+      try { localStorage.setItem(activeKey, JSON.stringify(orderData)); } catch (error) { }
     }
   }
 
@@ -444,7 +492,7 @@ async function submitOrder() {
     if (typeof writeUserStorage === 'function') {
       writeUserStorage(lastOrderKey, orderData, [getUserStorageKey('checkoutForm')]);
     } else {
-      try { localStorage.setItem(lastOrderKey, JSON.stringify(orderData)); } catch (error) { console.warn('Snapshot pesanan tidak dapat disimpan.', error); }
+      try { localStorage.setItem(lastOrderKey, JSON.stringify(orderData)); } catch (error) { }
     }
   }
 
@@ -464,7 +512,7 @@ async function submitOrder() {
     if (typeof writeUserStorage === 'function') {
       writeUserStorage(checkoutFormKey, checkoutFormData);
     } else {
-      try { localStorage.setItem(checkoutFormKey, JSON.stringify(checkoutFormData)); } catch (error) { console.warn('Data form checkout tidak dapat disimpan.', error); }
+      try { localStorage.setItem(checkoutFormKey, JSON.stringify(checkoutFormData)); } catch (error) { }
     }
   }
 
@@ -488,7 +536,7 @@ async function submitOrder() {
   window.location.href = 'success.html';
 }
 
-function saveDebtFromCheckout(orderData) {
+async function saveDebtFromCheckout(orderData) {
   const hutangKey = getUserStorageKey('hutang');
   if (!hutangKey) {
     console.warn('saveDebtFromCheckout: Tidak dapat menyimpan hutang - user tidak valid');
@@ -555,7 +603,38 @@ function saveDebtFromCheckout(orderData) {
   };
 
   debts.unshift(debt);
-  localStorage.setItem(hutangKey, JSON.stringify(debts));
+  const cleanupKeys = [getUserStorageKey('checkoutSummary'), getUserStorageKey('checkoutForm')].filter(Boolean);
+  const persistDebts = () => typeof writeUserStorage === 'function'
+    ? writeUserStorage(hutangKey, debts, cleanupKeys)
+    : (() => { try { localStorage.setItem(hutangKey, JSON.stringify(debts)); return true; } catch (error) { return false; } })();
+  let saved = persistDebts();
+
+  if (!saved) {
+    for (const record of debts) {
+      if (!record || typeof record !== 'object') continue;
+      for (const imageKey of ['profileImage', 'avatarUrl']) {
+        const image = record[imageKey];
+        if (typeof image !== 'string' || !image.startsWith('data:image/')) continue;
+        record[imageKey] = await compactProfileImageForOrder(image);
+      }
+    }
+    saved = persistDebts();
+  }
+
+  if (!saved) {
+    debts.forEach((record) => {
+      if (!record || typeof record !== 'object') return;
+      ['profileImage', 'avatarUrl'].forEach((imageKey) => {
+        if (typeof record[imageKey] === 'string' && record[imageKey].startsWith('data:image/')) {
+          delete record[imageKey];
+        }
+      });
+    });
+    saved = persistDebts();
+  }
+
+  if (!saved) console.error('Catatan hutang gagal disimpan setelah percobaan ulang.');
+  return saved;
 }
 
 function initializeCheckoutPage() {
@@ -599,5 +678,64 @@ window.addEventListener('pageshow', function() {
       window.NavigationGuard.validateAccess('checkout.html');
     }
     forceCleanReRender();
+    updateCancelCheckoutVisibility();
   }
+});
+
+/**
+ * ==========================================
+ * Pembatalan Pesanan di Halaman Checkout
+ * ==========================================
+ * Pesanan pada tahap checkout BELUM menjadi arsip admin (dikyOrders_<userId>
+ * belum dibuat). Karena itu tombol "Hapus Pesanan Ini" hanya membersihkan
+ * sumber pesanan milik user aktif (checkoutItems/pesananBaru/keranjang),
+ * BUKAN memakai hapusPesananOrderLintasArsip (helper tersebut khusus untuk
+ * pembatalan yang dilakukan admin di admin-orders.html).
+ */
+function updateCancelCheckoutVisibility() {
+  if (!cancelCheckoutButton) return;
+  // Tombol "Hapus Pesanan Ini" hanya tampil bila memang ada daftar pesanan
+  // pada tahap checkout (checkoutItems hasil konfirmasi keranjang).
+  cancelCheckoutButton.hidden = !hasValidCheckoutSequence();
+}
+
+function hapusPesananCheckout() {
+  if (!hasValidCheckoutSequence()) {
+    updateCancelCheckoutVisibility();
+    return;
+  }
+
+  const confirmed = window.confirm(
+    'Hapus pesanan ini dari checkout? Pesanan akan dibatalkan dan tidak diteruskan ke halaman berikutnya. Lanjutkan?'
+  );
+  if (!confirmed) return;
+
+  if (typeof window.hapusPesananDariCheckout === 'function') {
+    window.hapusPesananDariCheckout();
+  } else {
+    // Fallback bila helper belum termuat: bersihkan data checkout milik user aktif.
+    ['checkoutItems', 'checkoutSummary', 'checkoutForm', 'pesananBaru', 'cart'].forEach((type) => {
+      const key = getUserStorageKey(type);
+      if (key) localStorage.removeItem(key);
+    });
+    if (typeof clearUserLastPosition === 'function') clearUserLastPosition();
+  }
+
+  clearAutoFillCheckoutState();
+  forceCleanReRender();
+  updateSummaryCosts();
+  updateCancelCheckoutVisibility();
+
+  if (window.SmartGuide && typeof window.SmartGuide.init === 'function') {
+    window.SmartGuide.init();
+  }
+
+  window.alert('Pesanan telah dihapus dari halaman checkout.');
+}
+
+window.addEventListener('DOMContentLoaded', function () {
+  if (cancelCheckoutButton) {
+    cancelCheckoutButton.addEventListener('click', hapusPesananCheckout);
+  }
+  updateCancelCheckoutVisibility();
 });
