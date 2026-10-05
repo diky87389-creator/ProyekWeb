@@ -39,7 +39,13 @@ function formatPrice(value) {
 function getLastOrder() {
   if (typeof getPesananAktif === 'function') {
     const activeOrder = getPesananAktif();
-    if (activeOrder) return activeOrder;
+    // ATURAN PEMBATALAN: pesanan yang sudah dibatalkan admin (via tombol
+    // "Hapus" di admin-orders.html) TIDAK BOLEH ditampilkan lagi di success.html.
+    if (activeOrder) {
+      const status = String(activeOrder.status || '').toLowerCase();
+      if (status === 'dibatalkan' || status === 'cancelled') return null;
+      return activeOrder;
+    }
   }
 
   const lastOrderKey = getUserStorageKey('lastOrder');
