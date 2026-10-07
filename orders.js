@@ -259,18 +259,22 @@ function updateCourierLocations() {
 
 function renderOrders() {
   const orders = getOrders();
-  renderTabs(orders);
+  // Pesanan yang sudah dihapus user (tombol "Hapus" per pesanan / tombol
+  // "Hapus Riwayat") disembunyikan permanen dari tampilan user. Data pesanan
+  // di panel admin (admin-orders.html) dan Arsip Admin TIDAK tersentuh.
+  const shownOrders = orders.filter((order) => !order.dihapusUser);
+  renderTabs(shownOrders);
   // Re-evaluasi Smart Guide segera setelah tab dirender agar pop-up
   // langsung sembunyi di tab tahap aktif (mis. Dikirim) tanpa menunggu
   // peta Leaflet memuat se sempurna.
   if (window.SmartGuide && typeof window.SmartGuide.init === 'function') {
     window.SmartGuide.init();
   }
-  updateClearHistoryVisibility(orders);
+  updateClearHistoryVisibility(shownOrders);
   destroyRenderedMaps();
   clearElement(ordersList);
 
-  if (orders.length === 0) {
+  if (shownOrders.length === 0) {
     const emptyState = document.createElement('div');
     emptyState.className = 'empty-state';
 
@@ -285,7 +289,7 @@ function renderOrders() {
     return;
   }
 
-  const visibleOrders = orders.filter((order) => {
+  const visibleOrders = shownOrders.filter((order) => {
     if (activeTab === 'dikemas') return !['dikirim', 'siap_diambil', 'selesai', 'dibatalkan'].includes(order.status || 'menunggu');
     return (order.status || 'menunggu') === activeTab;
   });
@@ -436,14 +440,23 @@ window.addEventListener('beforeunload', function () {
 });
 
 function removeOrder(orderId) {
-  const orders = getOrders().filter((order) => order.id !== orderId);
+  // ATURAN: tombol "Hapus" milik user hanya menandai pesanan sebagai dihapus
+  // (dihapusUser) sehingga TIDAK muncul kembali dari arsip operasional admin.
+  // Data pesanan di admin-orders.html dan Arsip Admin TIDAK ikut terhapus.
+  const orders = getOrders();
+  const target = orders.find((order) => order.id === orderId);
+  if (target) target.dihapusUser = true;
   saveOrders(orders);
   renderOrders();
 }
 
 function clearHistory() {
   if (!confirm('Yakin ingin menghapus seluruh riwayat pesanan?')) return;
-  saveOrders([]);
+  // Sama dengan tombol "Hapus": sembunyikan semua pesanan dari riwayat user
+  // tanpa menghapus data di panel admin / Arsip Admin.
+  const orders = getOrders();
+  orders.forEach((order) => { order.dihapusUser = true; });
+  saveOrders(orders);
   renderOrders();
 }
 
