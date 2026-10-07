@@ -230,6 +230,7 @@
     }, fallbackToCachedPosition);
   }
   function render() {
+    if (archiveMode) { renderArchive(); return; }
     var query = document.getElementById('search-orders').value.toLowerCase().trim();
     var filter = document.getElementById('status-filter').value;
     var visible = orders.filter(function (o) {
@@ -241,8 +242,8 @@
     document.getElementById('orders-summary').textContent = visible.length + ' pesanan ditampilkan dari ' + orders.length + ' pesanan.';
     if (!visible.length) { orderList.innerHTML = '<div class="empty">Belum ada pesanan yang sesuai.</div>'; return; }
     orderList.innerHTML = visible.map(function (order) {
-      var customer = order.customer || {}; var identity = resolveIdentity(order); var list = items(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierValue = getAssignedCourier(order); var courierOptionsMarkup = courierOptions.map(function (courier) { return '<option value="' + esc(courier) + '"' + (courierValue === courier ? ' selected' : '') + '>' + esc(courier) + '</option>'; }).join(''); var nextAction = getNextAction(order); var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : 'tidak diketahui'); var actionAriaLabel = nextAction.disabled ? 'Pesanan selesai' : 'Ubah status pesanan menjadi ' + nextAction.label; var isCancelled = validStatus(order.status) === 'dibatalkan';
-        return '<article class="order-card' + (isCancelled ? ' is-cancelled' : '') + '" data-order-id="' + esc(order.id) + '" data-owner-id="' + esc(ownerId) + '">' + (isCancelled ? '<div class="cancelled-banner">✕ Pesanan Dibatalkan</div>' : '') + '<div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(identity.username) + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong> · ID: ' + esc(ownerId) + '</p>' + avatarMarkup(identity) + '</div><select class="status-select" data-status-id="' + esc(order.id) + '" aria-label="Status pesanan"' + (isCancelled ? ' disabled' : '') + '>' + statuses.map(function (s) { return '<option value="' + s + '"' + (validStatus(order.status) === s ? ' selected' : '') + '>' + actionLabel(s) + '</option>'; }).join('') + '</select></div>' + (isHomeDelivery(order) ? '<div class="delivery-assignment"><label for="courier-' + esc(order.id) + '">Kurir pengantar</label><select class="courier-select" id="courier-' + esc(order.id) + '" data-courier-id="' + esc(order.id) + '" aria-label="Pilih kurir untuk pesanan ' + esc(order.id) + '">' + courierOptionsMarkup + '<option value="Belum ditugaskan"' + (courierValue === 'Belum ditugaskan' ? ' selected' : '') + '>Belum ditugaskan</option></select><p class="courier-note">Petugas terpilih: <strong>' + esc(courierValue) + '</strong></p></div>' : '') + '<div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(i.quantity || i.qty || 0) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="primary-action-row"><button class="order-primary-action' + (nextAction.disabled ? ' is-complete' : '') + '" type="button" aria-label="' + esc(actionAriaLabel) + '" data-action-status="' + esc(nextAction.status) + '" data-action-id="' + esc(order.id) + '"' + (nextAction.disabled ? ' disabled' : '') + '>' + esc(nextAction.label) + '</button></div><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button>' + (mapsLink ? '<a class="action maps-link" href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>' : '') + (validStatus(order.status) === 'selesai' || isCancelled ? '' : '<button class="action danger" type="button" data-delete-id="' + esc(order.id) + '">Hapus</button>') + '</div></div></article>';
+      var customer = order.customer || {}; var identity = resolveIdentity(order); var list = items(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierValue = getAssignedCourier(order); var courierOptionsMarkup = courierOptions.map(function (courier) { return '<option value="' + esc(courier) + '"' + (courierValue === courier ? ' selected' : '') + '>' + esc(courier) + '</option>'; }).join(''); var nextAction = getNextAction(order); var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : 'tidak diketahui'); var actionAriaLabel = nextAction.disabled ? 'Pesanan selesai' : 'Ubah status pesanan menjadi ' + nextAction.label; var isCancelled = validStatus(order.status) === 'dibatalkan'; var canArchive = archiveMode ? false : (validStatus(order.status) === 'selesai');
+        return '<article class="order-card' + (isCancelled ? ' is-cancelled' : '') + '" data-order-id="' + esc(order.id) + '" data-owner-id="' + esc(ownerId) + '">' + (isCancelled ? '<div class="cancelled-banner">✕ Pesanan Dibatalkan</div>' : '') + '<div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(identity.username) + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong> · ID: ' + esc(ownerId) + '</p>' + avatarMarkup(identity) + '</div><select class="status-select" data-status-id="' + esc(order.id) + '" aria-label="Status pesanan"' + (isCancelled ? ' disabled' : '') + '>' + statuses.map(function (s) { return '<option value="' + s + '"' + (validStatus(order.status) === s ? ' selected' : '') + '>' + actionLabel(s) + '</option>'; }).join('') + '</select></div>' + (isHomeDelivery(order) ? '<div class="delivery-assignment"><label for="courier-' + esc(order.id) + '">Kurir pengantar</label><select class="courier-select" id="courier-' + esc(order.id) + '" data-courier-id="' + esc(order.id) + '" aria-label="Pilih kurir untuk pesanan ' + esc(order.id) + '">' + courierOptionsMarkup + '<option value="Belum ditugaskan"' + (courierValue === 'Belum ditugaskan' ? ' selected' : '') + '>Belum ditugaskan</option></select><p class="courier-note">Petugas terpilih: <strong>' + esc(courierValue) + '</strong></p></div>' : '') + '<div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(i.quantity || i.qty || 0) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="primary-action-row"><button class="order-primary-action' + (nextAction.disabled ? ' is-complete' : '') + '" type="button" aria-label="' + esc(actionAriaLabel) + '" data-action-status="' + esc(nextAction.status) + '" data-action-id="' + esc(order.id) + '"' + (nextAction.disabled ? ' disabled' : '') + '>' + esc(nextAction.label) + '</button></div><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button>' + (mapsLink ? '<a class="action maps-link" href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>' : '') + (validStatus(order.status) === 'selesai' || isCancelled ? '' : '<button class="action danger" type="button" data-delete-id="' + esc(order.id) + '">Hapus</button>') + (canArchive ? '<button class="action archive-action" type="button" data-archive-id="' + esc(order.id) + '" title="Sembunyikan dari daftar utama dan simpan di Arsip Admin (tidak menghapus permanen, tidak mengubah riwayat user)">Arsipkan</button>' : '') + '</div></div></article>';
     }).join('');
   }
   function detail(id) { var order = orders.find(function (o) { return String(o.id) === String(id); }); if (!order) return; var c = order.customer || {}; var identity = resolveIdentity(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierText = getAssignedCourier(order); document.getElementById('order-detail').innerHTML = '<div class="detail"><p><strong>ID:</strong> ' + esc(order.id) + '</p><p><strong>Pelanggan:</strong> ' + esc(c.name || order.customerName || '-') + '</p><p><strong>Jenis kelamin:</strong> ' + esc(identity.gender) + '</p><p><strong>Tanggal lahir:</strong> ' + esc(identity.birthDate) + '</p><p><strong>Telepon:</strong> ' + esc(c.phone || order.phone || '-') + '</p><p><strong>Alamat:</strong> ' + esc(c.address || order.address || '-') + '</p><p><strong>Kurir yang ditugaskan:</strong> ' + esc(courierText) + '</p>' + (mapsLink ? '<p><strong>Rute:</strong> <a href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a></p>' : '') + '<p><strong>Status:</strong> ' + esc(validStatus(order.status)) + '</p><p><strong>Total:</strong> ' + money(total(order)) + '</p><ul class="detail-items">' + items(order).map(function (i) { return '<li>' + esc(i.name) + ' × ' + esc(i.quantity || i.qty || 0) + '</li>'; }).join('') + '</ul></div>'; if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', ''); }
@@ -252,7 +253,7 @@
     var currentStatus = validStatus(order.status);
     // Pesanan yang sudah Selesai (riwayat) TIDAK boleh dibatalkan.
     if (currentStatus === 'selesai') {
-      window.alert('Pesanan sudah berstatus Selesai (riwayat) dan tidak dapat dibatalkan.');
+      window.alert('Pesanan sudah berstatus Selesai (riwayat) dan tidak dapat dibatalkan.\nGunakan tombol "Arsipkan" untuk memindahkannya ke arsip admin.');
       return;
     }
     // Pesanan yang sudah dibatalkan tidak perlu diproses lagi.
@@ -301,7 +302,7 @@
     save(); render();
   }
   function deleteAllOrders() {
-    if (!orders.length || !window.confirm('Hapus seluruh pesanan dari panel admin? Riwayat pesanan user tetap aman.')) return;
+    if (!orders.length || !window.confirm('Hapus seluruh pesanan dari panel admin?\n\nCATATAN: Hanya pesanan yang TIDAK diarsipkan yang dihapus. Pesanan di Arsip Admin aman. Riwayat pesanan user juga tetap aman.')) return;
     var keys = Array.from(new Set(orders.map(function (order) { return order.__storageKey; }).filter(Boolean)));
     var previousValues = {};
     keys.forEach(function (storageKey) { previousValues[storageKey] = localStorage.getItem(storageKey); });
@@ -321,6 +322,95 @@
     }
     orders = []; render();
   }
+  // ============================================================
+  // SISTEM ARSIP PESANAN (dipanggil tombol "Arsipkan" per kartu selesai)
+  // ============================================================
+  var ARCHIVE_KEY = 'dikyArchivedOrders';
+  var archiveMode = false;
+
+  function readArchive() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) { return []; }
+  }
+  function writeArchive(list) {
+    try { localStorage.setItem(ARCHIVE_KEY, JSON.stringify(Array.isArray(list) ? list : [])); return true; }
+    catch (error) { window.alert('Arsip tidak dapat disimpan karena penyimpanan browser penuh.'); return false; }
+  }
+
+  // Deteksi pintar: pesanan hanya boleh diarsipkan jika statusnya SUDAH
+  // 'selesai' (sudah lewat tombol Selesai di admin + tampil di tab Selesai
+  // orders.html). Selain itu (menunggu/diproses/dikirim/siap_diambil/menunggu
+  // di success.html/dibatalkan) tombol arsip TIDAK ditampilkan.
+  function canArchive(order) { return validStatus(order.status) === 'selesai'; }
+
+  function archiveOrder(id) {
+    var order = orders.find(function (item) { return String(item.id) === String(id); });
+    if (!order) return;
+    if (!canArchive(order)) {
+      window.alert('Pesanan belum berstatus Selesai, sehingga belum bisa diarsipkan.');
+      return;
+    }
+    if (!window.confirm('Arsipkan pesanan ' + (order.id || '') + '? Pesanan disembunyikan dari daftar utama panel admin (TIDAK dihapus) dan pindah ke Arsip Admin.')) return;
+    var archive = readArchive();
+    if (archive.some(function (entry) { return entry && String(entry.id) === String(order.id); })) {
+      window.alert('Pesanan ini sudah ada di Arsip Admin.');
+      return;
+    }
+    var copy = JSON.parse(JSON.stringify(cleanOrder(order)));
+    copy.archivedAt = new Date().toISOString();
+    copy.__ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : '');
+    archive.unshift(copy);
+    if (!writeArchive(archive)) return;
+    // Hapus dari daftar kerja panel admin. Riwayat user (riwayatPesanan_*)
+    // dan data lain TIDAK disentuh.
+    var storageKey = order.__storageKey;
+    if (storageKey) {
+      try {
+        var remaining = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (Array.isArray(remaining)) {
+          remaining = remaining.filter(function (entry) { return !entry || String(entry.id) !== String(order.id); });
+          localStorage.setItem(storageKey, JSON.stringify(remaining));
+        }
+      } catch (error) { }
+    }
+    orders = readAllOrders();
+    render();
+  }
+
+  function deleteArchivedOrder(id) {
+    var archive = readArchive();
+    var target = archive.find(function (entry) { return entry && String(entry.id) === String(id); });
+    if (!target) return;
+    if (!window.confirm('Hapus PERMANEN pesanan ' + (id || '') + ' dari Arsip Admin?\n\nTindakan ini tidak dapat dibatalkan. Riwayat pesanan milik user di orders.html TIDAK terpengaruh.')) return;
+    writeArchive(archive.filter(function (entry) { return !entry || String(entry.id) !== String(id); }));
+    render();
+  }
+
+  function toggleArchiveView() {
+    archiveMode = !archiveMode;
+    document.getElementById('archive-button').textContent = archiveMode ? '← Kembali ke Daftar Pesanan' : '⧉ Arsip (' + readArchive().length + ')';
+    document.getElementById('delete-all-orders').hidden = archiveMode;
+    render();
+  }
+
+  function renderArchive() {
+    var archive = readArchive();
+    var query = document.getElementById('search-orders').value.toLowerCase().trim();
+    var visible = archive.filter(function (order) {
+      var customerName = (order.customer && order.customer.name) || order.customerName || '';
+      var text = String(order.id || '') + ' + ' + String(customerName);
+      return !query || text.toLowerCase().indexOf(query) !== -1;
+    });
+    document.getElementById('orders-summary').textContent = 'ARSIP ADMIN — ' + visible.length + ' pesanan diarsipkan. Pesanan di sini disembunyikan dari daftar utama (tidak dihapus).';
+    if (!visible.length) { orderList.innerHTML = '<div class="empty">Arsip kosong. Pesanan berstatus Selesai bisa diarsipkan dari daftar utama.</div>'; return; }
+    orderList.innerHTML = visible.map(function (order) {
+      var customer = order.customer || {}; var identity = resolveIdentity(order); var list = items(order);
+      return '<article class="order-card is-archived" data-order-id="' + esc(order.id) + '"><div class="archived-banner">⧉ Pesanan Diarsipkan' + (order.archivedAt ? ' — ' + esc(new Date(order.archivedAt).toLocaleString('id-ID')) : '') + '</div><div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong>' + (order.__ownerId ? ' · ID: ' + esc(order.__ownerId) : '') + '</p>' + avatarMarkup(identity) + '</div></div><div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(i.quantity || i.qty || 0) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button><button class="action danger" type="button" data-delete-archived-id="' + esc(order.id) + '">Hapus</button></div></div></article>';
+    }).join('');
+  }
+
   orderList.addEventListener('change', function (e) {
     if (e.target.dataset.statusId) {
       var order = orders.find(function (o) { return String(o.id) === String(e.target.dataset.statusId); });
@@ -359,11 +449,11 @@
       }
     }
   });
-  orderList.addEventListener('click', function (e) { var detailButton = e.target.closest('[data-detail-id]'); var deleteButton = e.target.closest('[data-delete-id]'); var actionButton = e.target.closest('[data-action-id]'); if (detailButton) detail(detailButton.dataset.detailId); if (deleteButton) deleteOrder(deleteButton.dataset.deleteId); if (actionButton) { var actionOrder = orders.find(function (o) { return String(o.id) === String(actionButton.dataset.actionId); }); if (!actionOrder) return; // ATURAN PEMBATALAN: blokir tombol aksi untuk pesanan yang dibatalkan.
+  orderList.addEventListener('click', function (e) { var detailButton = e.target.closest('[data-detail-id]'); var deleteButton = e.target.closest('[data-delete-id]'); var actionButton = e.target.closest('[data-action-id]'); var archiveButton = e.target.closest('[data-archive-id]'); var deleteArchivedButton = e.target.closest('[data-delete-archived-id]'); if (detailButton) detail(detailButton.dataset.detailId); if (deleteButton) deleteOrder(deleteButton.dataset.deleteId); if (archiveButton) archiveOrder(archiveButton.dataset.archiveId); if (deleteArchivedButton) deleteArchivedOrder(deleteArchivedButton.dataset.deleteArchivedId); if (actionButton) { var actionOrder = orders.find(function (o) { return String(o.id) === String(actionButton.dataset.actionId); }); if (!actionOrder) return; // ATURAN PEMBATALAN: blokir tombol aksi untuk pesanan yang dibatalkan.
  if (validStatus(actionOrder.status) === 'dibatalkan') { window.alert('Pesanan ini sudah dibatalkan dan tidak dapat diproses lagi.'); return; } if (actionOrder && actionButton.dataset.actionStatus === 'dikirim') { markOrderAsShipped(actionOrder); } else if (actionOrder) { actionOrder.status = validStatus(actionButton.dataset.actionStatus); if (actionOrder.status === 'selesai') clearCourierLocation(actionOrder.id); else stopCourierTracking(actionOrder.id); save(); render(); } } });
   window.addEventListener('beforeunload', function () {
     Object.keys(courierWatchers).forEach(stopCourierTracking);
   });
-  document.getElementById('search-orders').addEventListener('input', render); document.getElementById('status-filter').addEventListener('change', render); document.getElementById('refresh-button').addEventListener('click', load); document.getElementById('delete-all-orders').addEventListener('click', deleteAllOrders); document.getElementById('close-dialog').addEventListener('click', function () { dialog.close(); });
+  document.getElementById('search-orders').addEventListener('input', render); document.getElementById('status-filter').addEventListener('change', render); document.getElementById('refresh-button').addEventListener('click', load); document.getElementById('delete-all-orders').addEventListener('click', deleteAllOrders); document.getElementById('close-dialog').addEventListener('click', function () { dialog.close(); }); document.getElementById('archive-button').addEventListener('click', toggleArchiveView);
   window.addEventListener('storage', load); document.addEventListener('DOMContentLoaded', load);
 }());

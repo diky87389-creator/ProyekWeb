@@ -699,17 +699,21 @@ function updateCancelCheckoutVisibility() {
   cancelCheckoutButton.hidden = !hasValidCheckoutSequence();
 }
 
+let isDeletingCheckout = false;
+
 function hapusPesananCheckout() {
+  // Pengaman klik ganda: proses hapus hanya boleh berjalan satu kali.
+  if (isDeletingCheckout) return;
   if (!hasValidCheckoutSequence()) {
     updateCancelCheckoutVisibility();
     return;
   }
+  isDeletingCheckout = true;
 
-  const confirmed = window.confirm(
-    'Hapus pesanan ini dari checkout? Pesanan akan dibatalkan dan tidak diteruskan ke halaman berikutnya. Lanjutkan?'
-  );
-  if (!confirmed) return;
-
+  // TANPA window.confirm / window.alert: dialog browser adalah penyebab
+  // tombol terasa "harus diklik berkali-kali" (klik saat dialog tertutup
+  // hilang / ditelan, dan di beberapa konteks confirm() selalu false
+  // sehingga fungsi keluar tanpa menghapus apa pun). Sekali klik = langsung hapus.
   if (typeof window.hapusPesananDariCheckout === 'function') {
     window.hapusPesananDariCheckout();
   } else {
@@ -730,7 +734,20 @@ function hapusPesananCheckout() {
     window.SmartGuide.init();
   }
 
-  window.alert('Pesanan telah dihapus dari halaman checkout.');
+  // Umpan balik non-dialog: ubah teks tombol sesaat, lalu kembalikan.
+  if (cancelCheckoutButton) {
+    const label = cancelCheckoutButton.querySelector('.button-text');
+    if (label) label.textContent = 'Pesanan dihapus';
+    cancelCheckoutButton.disabled = true;
+    window.setTimeout(() => {
+      isDeletingCheckout = false;
+      if (label) label.textContent = 'Hapus Pesanan Ini';
+      cancelCheckoutButton.disabled = false;
+      updateCancelCheckoutVisibility();
+    }, 400);
+  } else {
+    isDeletingCheckout = false;
+  }
 }
 
 window.addEventListener('DOMContentLoaded', function () {

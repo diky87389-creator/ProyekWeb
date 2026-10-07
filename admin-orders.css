@@ -37,3 +37,9 @@ input,select { width:100%; min-height:44px; padding:.65rem .75rem; color:var(--t
 dialog { width:min(92vw,560px); padding:0; color:var(--text); border:0; border-radius:1rem; box-shadow:0 24px 80px rgba(0,0,0,.25); } dialog::backdrop { background:rgba(8,35,18,.45); } .dialog-head { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.25rem; border-bottom:1px solid var(--line); } .dialog-head h2 { margin:0; } .close { border:0; background:none; font-size:1.5rem; }
 .detail { padding:1.25rem; } .detail p { margin-bottom:.55rem; } .detail-items { padding-left:1.1rem; }
 @media (max-width:650px) { .bar-inner,.container { width:min(100% - 1.25rem,38rem); } .bar-inner,.page-heading,.toolbar,.order-top,.order-bottom { align-items:stretch; flex-direction:column; } .button,.status-select,.actions,.page-actions { width:100%; } .page-actions { display:grid; grid-template-columns:1fr; } .order-bottom { gap:.85rem; } .actions .action { flex:1 1 150px; } }
+
+/* ===== Sistem Arsip Pesanan (admin-orders.html) ===== */
+.order-card.is-archived { border-color:#c9d8e8; background:#f8fbff; }
+.archived-banner { margin:0 0 .9rem; padding:.5rem .8rem; border-radius:.6rem; background:#e8f1fd; color:#1d4e89; border:1px solid #cfe0f5; font-weight:800; font-size:.85rem; }
+.action.archive-action { color:#1d4e89; border-color:#c9d8e8; background:#f2f7ff; }
+.action.archive-action:hover { background:#e2edfb; }
