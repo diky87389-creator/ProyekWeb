@@ -14,6 +14,9 @@
   function key() { var id = userId(); return id ? 'dikyHutangAdmin_' + id : null; }
   function read() { try { var data = JSON.parse(localStorage.getItem(key()) || '[]'); return Array.isArray(data) ? data : []; } catch (e) { return []; } }
   function readAll() {
+    // Rekonsiliasi otomatis (idempoten): bersihkan kasbon pesanan dibatalkan
+    // dari sisi admin dan pastikan kasbon lama tetap punya salinan admin.
+    reconcileAdminCopies();
     var result = [];
     for (var i = 0; i < localStorage.length; i += 1) {
       var storageKey = localStorage.key(i);
@@ -23,6 +26,91 @@
     return result;
   }
   function readArray(storageKey) { try { var data = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(data) ? data : []; } catch (e) { return []; } }
+
+  // ============================================================
+  // REKONSILIASI SALINAN ADMIN (jalan otomatis, tidak menghapus data user)
+  // ============================================================
+  // 1) Kasbon milik pesanan yang dibatalkan admin dibuang dari salinan admin
+  //    dan arsip admin (sesuai aturan pembatalan pesanan), TANPA menyentuh
+  //    key milik user.
+  // 2) Kasbon lama di key user (dikyHutang_*) yang belum punya salinan admin
+  //    ditambahkan ke salinan admin (dikyHutangAdmin_*) agar tetap tampil di
+  //    panel admin. Kasbon yang sudah diarsipkan atau dihapus permanen di
+  //    sisi admin tidak pernah dimasukkan kembali.
+  function reconcileAdminCopies() {
+    try {
+      var cancelledIds = {};
+      for (var i = 0; i < localStorage.length; i += 1) {
+        var orderKey = localStorage.key(i);
+        if (!orderKey || orderKey.indexOf('dikyOrders_') !== 0) continue;
+        readArray(orderKey).forEach(function (order) {
+          if (order && String(order.status || '').toLowerCase().indexOf('dibatalkan') !== -1 && (order.id || order.orderId)) {
+            cancelledIds[String(order.id || order.orderId)] = true;
+          }
+        });
+      }
+      for (var j = 0; j < localStorage.length; j += 1) {
+        var adminKey = localStorage.key(j);
+        if (!adminKey || adminKey.indexOf('dikyHutangAdmin_') !== 0) continue;
+        var adminDebts = readArray(adminKey);
+        var kept = adminDebts.filter(function (debt) { return !debt || !cancelledIds[String(debt.orderId || '')]; });
+        if (kept.length !== adminDebts.length) localStorage.setItem(adminKey, JSON.stringify(kept));
+      }
+      var archive = readArchive();
+      var keptArchive = archive.filter(function (debt) { return !debt || !cancelledIds[String(debt.orderId || '')]; });
+      if (keptArchive.length !== archive.length) localStorage.setItem(ARCHIVE_KEY, JSON.stringify(keptArchive));
+
+      var knownIds = {};
+      readArchive().forEach(function (entry) { if (entry && entry.id) knownIds[String(entry.id)] = true; });
+      for (var u = 0; u < localStorage.length; u += 1) {
+        var userKey = localStorage.key(u);
+        if (!userKey || userKey.indexOf('dikyHutang_') !== 0) continue;
+        var targetKey = 'dikyHutangAdmin_' + userKey.slice('dikyHutang_'.length);
+        var userDebts = readArray(userKey);
+        var copies = readArray(targetKey);
+        copies.forEach(function (debt) { if (debt && debt.id) knownIds[String(debt.id)] = true; });
+        var missing = userDebts.filter(function (debt) {
+          return debt && debt.id && !knownIds[String(debt.id)] && !cancelledIds[String(debt.orderId || '')];
+        });
+        if (missing.length) {
+          localStorage.setItem(targetKey, JSON.stringify(copies.concat(missing)));
+          missing.forEach(function (debt) { knownIds[String(debt.id)] = true; });
+        }
+      }
+    } catch (error) { }
+  }
+
+  // Perbarui status (Lunas/Belum Lunas) pada salinan milik user
+  // (dikyHutang_<ownerId>) agar hutang.html menampilkan status terbaru.
+  // Hanya field status dan paymentDate yang disentuh; data user tidak
+  // pernah dihapus atau diarsipkan dari sini.
+  function syncStatusToUserCopy(debt) {
+    if (!debt || !debt.id) return;
+    try {
+      var ownerId = String(debt.__storageKey ? String(debt.__storageKey).replace(/^dikyHutangAdmin_/, '') : (debt.userId || ''));
+      if (!ownerId) return;
+      var userKey = 'dikyHutang_' + ownerId;
+      var userDebts = readArray(userKey);
+      var changed = false;
+      userDebts.forEach(function (entry) {
+        if (entry && String(entry.id) === String(debt.id) && status(entry.status) !== status(debt.status)) {
+          entry.status = status(debt.status);
+          entry.paymentDate = debt.paymentDate || null;
+          changed = true;
+        }
+      });
+      if (changed) localStorage.setItem(userKey, JSON.stringify(userDebts));
+    } catch (error) { }
+  }
+
+  // Label tombol arsip selalu mencerminkan jumlah kasbon yang masih terlihat.
+  function updateArchiveLabel() {
+    var button = document.getElementById('archive-button');
+    if (!button) return;
+    var visible = readArchive().filter(function (entry) { return entry && !entry.permanentlyDeletedAt; });
+    button.textContent = archiveMode ? '← Kembali ke Daftar Kasbon' : '⎈ Arsip (' + visible.length + ')';
+  }
+
   function buildInitials(name) { var words = String(name || '').trim().split(/[\s@._-]+/).filter(Boolean); return (words.slice(0, 2).map(function (word) { return word.charAt(0); }).join('') || 'WS').toUpperCase(); }
   function avatarMarkup(identity) { return identity.profileImage ? '<img class="customer-avatar" width="44" height="44" src="' + esc(identity.profileImage) + '" alt="Foto profil ' + esc(identity.username) + '" loading="lazy" style="width:44px;height:44px;max-width:44px;max-height:44px;object-fit:cover;border-radius:50%;display:block;">' : '<span class="customer-avatar customer-avatar-initials" aria-label="Inisial ' + esc(identity.username) + '">' + esc(identity.initials) + '</span>'; }
   function resolveIdentity(debt) {
@@ -87,6 +175,7 @@
     }
   }
   function render() {
+    updateArchiveLabel();
     if (archiveMode) { renderArchive(); return; }
     var query = document.getElementById('search-debts').value.toLowerCase().trim();
     var filter = document.getElementById('status-filter').value;
@@ -120,6 +209,9 @@
       debt.status = status(event.target.value);
       debt.paymentDate = debt.status === 'lunas' ? new Date().toISOString() : null;
       save();
+      // Sinkronkan status terbaru ke salinan milik user agar hutang.html
+      // ikut menampilkan Lunas/Belum Lunas (hanya field status, bukan hapus).
+      syncStatusToUserCopy(debt);
       render();
     }
   });
@@ -137,7 +229,8 @@
   // Isolasi dua arah: arsip/hapus di sini HANYA menyentuh salinan
   // milik admin (dikyHutangAdmin_*) dan penyimpanan arsip
   // (dikyHutangArchive). Key milik user (dikyHutang_*) TIDAK PERNAH
-  // disentuh, jadi hutang.html tidak terpengaruh sama sekali.
+  // dihapus/diarsipkan dari sini, jadi tampilan hutang.html milik user
+  // tidak terpengaruh sama sekali.
   // ============================================================
   function readArchive() {
     try { var parsed = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); return Array.isArray(parsed) ? parsed : []; } catch (e) { return []; }
@@ -190,13 +283,18 @@
       window.alert('Kasbon belum berstatus Lunas sehingga tidak dapat dihapus permanen.');
       return;
     }
-    if (!window.confirm('Hapus PERMANEN kasbon ' + (id || '') + ' dari Arsip Admin?\n\nTindakan ini tidak dapat dibatalkan. Data milik user di hutang.html TIDAK terpengaruh.')) return;
-    writeArchive(archive.filter(function (entry) { return !entry || String(entry.id) !== String(id); }));
+    if (!window.confirm('Hapus PERMANEN kasbon ' + (id || '') + ' dari Arsip Admin?\n\nTindakan ini tidak dapat dibatalkan. Kasbon disembunyikan selamanya dari seluruh panel admin. Data milik user di hutang.html TIDAK terpengaruh.')) return;
+    // Tandai dihapus permanen (penanda), bukan dibuang: penanda ini membuat
+    // kasbon tidak pernah muncul kembali di panel admin, namun data user di
+    // hutang.html tetap utuh sampai user menghapusnya sendiri.
+    target.permanentlyDeletedAt = new Date().toISOString();
+    writeArchive(archive);
     render();
   }
 
   function renderArchive() {
-    var archive = readArchive();
+    // Entri yang sudah dihapus permanen tidak pernah ditampilkan lagi.
+    var archive = readArchive().filter(function (entry) { return entry && !entry.permanentlyDeletedAt; });
     var query = document.getElementById('search-debts').value.toLowerCase().trim();
     var visible = archive.filter(function (debt) {
       var text = (String(debt.id || '') + ' ' + String(debt.orderId || '') + ' ' + String(debt.customerName || '')).toLowerCase();
@@ -209,13 +307,12 @@
     if (!visible.length) { list.innerHTML = '<div class="empty">Arsip kosong. Kasbon berstatus Lunas dapat diarsipkan dari daftar utama.</div>'; return; }
     list.innerHTML = visible.map(function (debt) {
       var identity = resolveIdentity(debt);
-      return '<article class="debt-card is-archived"><div class="archived-banner">⧉ Kasbon Diarsipkan' + (debt.archivedAt ? ' — ' + new Date(debt.archivedAt).toLocaleString('id-ID') : '') + '</div><div class="debt-top"><div><p class="debt-id">' + esc(debt.id || 'Tanpa ID') + '</p>' + avatarMarkup(identity) + '<p class="debt-name">' + esc(debt.customerName || 'Pelanggan') + '</p><p class="debt-meta">Akun: @' + esc(identity.username) + (debt.__ownerId ? ' · ID: ' + esc(debt.__ownerId) : '') + '</p><p class="debt-meta">Order: ' + esc(debt.orderId || '-') + '</p></div><span class="status-badge status-lunas">Lunas</span></div><div class="items">' + items(debt).map(function (item) { return itemImageMarkup(item); }).join('') + '</div><div class="debt-bottom"><strong class="total">' + money(total(debt)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(debt.id) + '">Lihat Detail</button><button class="action danger" type="button" data-delete-archived-debt-id="' + esc(debt.id) + '" title="Hapus permanen dari arsip (data milik user di hutang.html tidak terpengaruh)">Hapus</button></div></div></article>';
+      return '<article class="debt-card is-archived"><div class="archived-banner">⎈ Kasbon Diarsipkan' + (debt.archivedAt ? ' — ' + new Date(debt.archivedAt).toLocaleString('id-ID') : '') + '</div><div class="debt-top"><div><p class="debt-id">' + esc(debt.id || 'Tanpa ID') + '</p>' + avatarMarkup(identity) + '<p class="debt-name">' + esc(debt.customerName || 'Pelanggan') + '</p><p class="debt-meta">Akun: @' + esc(identity.username) + (debt.__ownerId ? ' · ID: ' + esc(debt.__ownerId) : '') + '</p><p class="debt-meta">Order: ' + esc(debt.orderId || '-') + '</p></div><span class="status-badge status-lunas">Lunas</span></div><div class="items">' + items(debt).map(function (item) { return itemImageMarkup(item); }).join('') + '</div><div class="debt-bottom"><strong class="total">' + money(total(debt)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(debt.id) + '">Lihat Detail</button><button class="action danger" type="button" data-delete-archived-debt-id="' + esc(debt.id) + '" title="Hapus permanen dari arsip (data milik user di hutang.html tidak terpengaruh)">Hapus</button></div></div></article>';
     }).join('');
   }
 
   function toggleArchiveView() {
     archiveMode = !archiveMode;
-    document.getElementById('archive-button').textContent = archiveMode ? '← Kembali ke Daftar Kasbon' : '⧉ Arsip (' + readArchive().length + ')';
     render();
   }
   document.getElementById('search-debts').addEventListener('input', render);
