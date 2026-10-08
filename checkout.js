@@ -634,7 +634,33 @@ async function saveDebtFromCheckout(orderData) {
   }
 
   if (!saved) console.error('Catatan hutang gagal disimpan setelah percobaan ulang.');
+  if (saved) syncAdminDebtCopy(debt);
   return saved;
+}
+
+/**
+ * ==========================================================
+ * SINKRONISASI SALINAN HUTANG UNTUK PANEL ADMIN
+ * ==========================================================
+ * Isolasi dua arah: admin-hutang.html membaca salinan tersendiri
+ * (dikyHutangAdmin_<userId>), hutang.html membaca salinan milik user
+ * (dikyHutang_<userId>). Penghapusan di satu sisi TIDAK mempengaruhi
+ * sisi lain karena keduanya tidak pernah menyentuh key milik sisi lain.
+ * Salinan admin dibuat saat kasbon baru muncul (dari checkout).
+ */
+function syncAdminDebtCopy(debt) {
+  if (!debt || !debt.id) return false;
+  const adminKey = getUserStorageKey('hutangAdmin');
+  if (!adminKey) return false;
+  let adminDebts = [];
+  try {
+    const raw = localStorage.getItem(adminKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) adminDebts = parsed;
+  } catch (error) { adminDebts = []; }
+  if (adminDebts.some(function (entry) { return entry && String(entry.id) === String(debt.id); })) return true;
+  adminDebts.unshift(Object.assign({}, debt));
+  try { localStorage.setItem(adminKey, JSON.stringify(adminDebts)); return true; } catch (error) { return false; }
 }
 
 function initializeCheckoutPage() {

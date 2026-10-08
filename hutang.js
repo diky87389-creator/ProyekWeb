@@ -188,6 +188,10 @@
       var waBtn = d.phone
         ? '<button class="action-btn action-wa" data-action="wa" data-id="' + d.id + '">💬 WhatsApp</button>'
         : "";
+      // ATURAN HAPUS (users): tombol "Hapus" HANYA muncul untuk kasbon lunas.
+      var deleteBtn = d.status === "lunas"
+        ? '<button class="action-btn action-delete" data-action="delete" data-id="' + d.id + '">🗑️ Hapus</button>'
+        : "";
 
       return (
         '<article class="debt-card ' + (d.status === "lunas" ? "is-paid" : "") + '" data-id="' + d.id + '">' +
@@ -212,6 +216,7 @@
         '<button class="action-btn" data-action="receipt" data-id="' + d.id + '">🧾 Lihat Struk</button>' +
         '<button class="action-btn" data-action="detail" data-id="' + d.id + '">📋 Histori</button>' +
         waBtn +
+        deleteBtn +
         "</div>" +
         "</article>"
       );
@@ -231,7 +236,28 @@
     else if (action === "receipt") openReceiptModal(debt);
     else if (action === "detail") openDetailModal(debt);
     else if (action === "wa") sendWhatsApp(debt);
+    else if (action === "delete") deleteDebt(debt);
   });
+
+  // Hapus kasbon milik user sendiri (hanya untuk status lunas).
+  // Isolasi dua arah: hanya menyentuh key milik user (dikyHutang_<userId>).
+  // Salinan admin (dikyHutangAdmin_*) dan arsip admin (dikyHutangArchive)
+  // TIDAK disentuh sama sekali, jadi panel admin tidak terpengaruh.
+  function deleteDebt(debt) {
+    if (!debt || debt.status !== "lunas") {
+      showToast("Hanya hutang yang sudah Lunas yang dapat dihapus.");
+      return;
+    }
+    if (!window.confirm("Hapus catatan hutang " + debt.id.slice(0, 8).toUpperCase() + " yang sudah Lunas?\n\nCatatan ini dihapus dari halaman hutang Anda dan tidak dapat dikembalikan. Data di panel admin tidak terpengaruh.")) return;
+    var remaining = debts.filter(function (d) { return String(d.id) !== String(debt.id); });
+    if (saveData(remaining)) {
+      debts = loadData();
+      renderList();
+      showToast("Catatan hutang lunas telah dihapus.");
+    } else {
+      showToast("Gagal menghapus. Coba lagi.");
+    }
+  }
 
   // --- Payment info modal (read-only) ---
   var payModal = document.getElementById("pay-modal");

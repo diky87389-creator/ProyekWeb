@@ -955,3 +955,13 @@ button, .button, a.button { min-height: 44px; }
   .debt-actions { display: grid; grid-template-columns: 1fr; }
   .button, button { width: 100%; }
 }
+
+/* ===== Tombol Hapus (users, hanya untuk kasbon lunas) ===== */
+.action-btn.action-delete {
+  color: #b42318;
+  border: 1px solid #f3c2bb;
+  background: #fff5f3;
+}
+.action-btn.action-delete:hover {
+  background: #fde8e4;
+}

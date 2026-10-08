@@ -50,6 +50,7 @@
       'cart': `dikyCart_${user.id}`,
       'orders': `dikyOrders_${user.id}`,
       'hutang': `dikyHutang_${user.id}`,
+      'hutangAdmin': `dikyHutangAdmin_${user.id}`,
       'checkoutItems': `dikyCheckoutItems_${user.id}`,
       'checkoutSummary': `dikyCheckoutSummary_${user.id}`,
       'lastOrder': `dikyLastOrder_${user.id}`,

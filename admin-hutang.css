@@ -425,3 +425,19 @@ dialog::backdrop {
         gap: .85rem;
     }
 }
+/* ===== Sistem Arsip Kasbon (admin-hutang.html) ===== */
+.debt-card.is-archived { border-color: #c9d8e8; background: #f8fbff; }
+.archived-banner {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 0.6rem;
+  background: #e8f1fd;
+  color: #1d4e89;
+  border: 1px solid #cfe0f5;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.action.archive-action { color: #1d4e89; border-color: #c9d8e8; background: #f2f7ff; }
+.action.archive-action:hover { background: #e2edfb; }
+.action.danger { color: #b42318; border-color: #f3c2bb; background: #fff5f3; }
+.action.danger:hover { background: #fde8e4; }
