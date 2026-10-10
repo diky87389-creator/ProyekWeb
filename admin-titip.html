@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+  <script src="admin-gate.js"></script>
+  <title>Kelola Titipan - Warung Sayur Diky</title>
+  <link rel="stylesheet" href="admin-titip.css">
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="bar-inner"><a class="brand" href="admin-dashboard.html">Warung Sayur Diky <span>Admin</span></a><a
+        class="button button-light" href="admin-dashboard.html">← Dashboard</a></div>
+  </header>
+  <main class="container">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">Operasional pasar</p>
+        <h1>Kelola Titipan</h1>
+        <p class="muted">Titipan malam pelanggan untuk dibelikan di pasar besok pagi.</p>
+      </div><button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button>
+    </section>
+
+    <section class="stats-grid" aria-label="Ringkasan titipan">
+      <article class="stat-card"><span>🧺</span>
+        <div>
+          <p>Titipan Aktif</p><strong id="active-count">0</strong>
+        </div>
+      </article>
+      <article class="stat-card"><span>🥬</span>
+        <div>
+          <p>Produk Habis di Pasar</p><strong id="habis-count">0</strong>
+        </div>
+      </article>
+      <article class="stat-card"><span>💰</span>
+        <div>
+          <p>Total Ditagihkan</p><strong id="tagih-total">Rp0</strong>
+        </div>
+      </article>
+    </section>
+
+    <section class="toolbar"><label for="search-titipan">Cari pelanggan, ID, atau produk<input id="search-titipan"
+          type="search" placeholder="Masukkan kata kunci"></label><label for="status-filter">Status<select
+          id="status-filter">
+          <option value="all">Semua status</option>
+          <option value="menunggu_dibeli">Menunggu Dibeli</option>
+          <option value="diproses">Sedang Dibelikan</option>
+          <option value="sebagian_habis">Ada Produk Habis</option>
+          <option value="siap_diambil">Siap Diambil</option>
+          <option value="selesai">Selesai</option>
+          <option value="dibatalkan">Dibatalkan</option>
+        </select></label></section>
+
+    <p id="titip-summary" class="summary" aria-live="polite"></p>
+    <section id="titip-list" class="titip-list" aria-live="polite"></section>
+  </main>
+
+  <dialog id="detail-dialog">
+    <div class="dialog-head">
+      <h2>Detail Titipan</h2><button id="close-dialog" class="close" type="button" aria-label="Tutup">×</button>
+    </div>
+    <div id="titip-detail"></div>
+  </dialog>
+
+  <script src="storage-helper.js"></script>
+  <script src="titip-helper.js"></script>
+  <script src="admin-titip.js"></script>
+</body>
+
+</html>

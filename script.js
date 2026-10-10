@@ -180,6 +180,38 @@ function isProductHabis(product) {
   return String(product && product.status || '').trim().toLowerCase() === 'habis';
 }
 
+// Titip Beli: menyimpan produk pilihan pelanggan sebagai titipan untuk
+// dibelikan admin di pasar esok pagi. Disimpan pada key titipan terpisah
+// (dikyTitipan_<userId>) lewat TitipHelper; TIDAK masuk keranjang dan TIDAK
+// menyentuh kasbon/hutang. Harga menyusul dari pasar saat admin memfinalisasi.
+function titipProduct(productId) {
+  loadProducts();
+  const product = products.find((item) => item.id === productId);
+  if (!product) return;
+
+  if (!window.TitipHelper || typeof window.TitipHelper.simpanTitipanBaru !== 'function') {
+    // Fallback: arahkan ke halaman titip agar pelanggan dapat menitipkan di sana.
+    showToast('Halaman Titip Beli belum siap. Membuka halaman titip...');
+    window.setTimeout(() => { window.location.href = 'titip.html'; }, 900);
+    return;
+  }
+
+  const defaultUnit = (product.units && product.units[0]) || null;
+  const result = window.TitipHelper.simpanTitipanBaru([{
+    id: product.id,
+    name: product.name,
+    unit: defaultUnit ? defaultUnit.name : '',
+    qty: 1,
+    image: product.image
+  }]);
+
+  if (result && result.ok) {
+    showToast(`${product.name} dititipkan untuk dibelikan besok di pasar.`);
+  } else {
+    showToast((result && result.reason) || 'Titipan gagal disimpan.');
+  }
+}
+
 function createProductCard(product) {
   const article = document.createElement('article');
   article.className = 'product-card';
@@ -219,6 +251,20 @@ function createProductCard(product) {
   button.addEventListener('click', () => addToCart(product.id));
 
   productActions.append(button);
+
+  // Produk yang sedang "Stok Habis" tetap bisa DITITIP untuk dibelikan di pasar
+  // esok pagi (di luar jam belanja online). Ini jalur alternatif, bukan belanja
+  // langsung: titipan tidak masuk keranjang dan harganya menyusul dari pasar.
+  if (habis) {
+    const titipButton = document.createElement('button');
+    titipButton.type = 'button';
+    titipButton.className = 'button-titip';
+    titipButton.textContent = '🛒 Titip Beli Besok';
+    titipButton.setAttribute('aria-label', `Titip beli ${product.name} untuk dibelikan di pasar besok`);
+    titipButton.addEventListener('click', () => titipProduct(product.id));
+    productActions.append(titipButton);
+  }
+
   cardBody.append(cardInfo, productActions);
   article.append(productImage, cardBody);
 

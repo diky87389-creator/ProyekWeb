@@ -382,6 +382,21 @@ button, .button {
   box-shadow: 0 3px 8px rgba(62, 147, 97, 0.2);
 }
 
+/* Tombol alternatif "Titip Beli Besok" untuk produk yang sedang Stok Habis.
+   Jalur titip tidak masuk keranjang; produk dibelikan admin di pasar, dan
+   bila habis di pasar pelanggan mendapat pemberitahuan di halaman titip. */
+.product-card button.button-titip {
+  background: #fff;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: none;
+}
+
+.product-card button.button-titip:hover {
+  background: var(--surface-soft, #f7fcf8);
+  box-shadow: 0 4px 12px rgba(62, 147, 97, 0.15);
+}
+
 .site-footer {
   padding: 2rem 0;
   color: var(--muted);

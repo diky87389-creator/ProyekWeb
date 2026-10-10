@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
+  <title>Titip Beli Sayur - Warung Sayur Diky</title>
+  <script src="session-gate.js"></script>
+  <link rel="stylesheet" href="titip.css" />
+</head>
+
+<body>
+  <header class="page-header">
+    <div class="container header-inner">
+      <div class="brand-group">
+        <div class="brand-mark">WS</div>
+        <div>
+          <p class="eyebrow">Titip Beli ke Pasar</p>
+          <h1>Titip Beli Sayur</h1>
+        </div>
+      </div>
+      <nav class="site-nav">
+        <a href="index.html">Beranda</a>
+        <a href="keranjang.html">Keranjang</a>
+        <a href="hutang.html">Hutang</a>
+        <a href="profile.html">Profil</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container titip-page">
+    <!-- Info alur & jam operasional -->
+    <section class="info-banner" id="info-banner">
+      <div class="info-icon">🌙</div>
+      <div>
+        <h2 class="info-title">Belanja online tutup, tapi titip beli tetap buka</h2>
+        <p class="info-text">
+          Toko menerima pesanan online pukul <strong id="jam-operasional">07.00 - 18.00</strong>.
+          Di luar jam tersebut Anda tetap bisa <strong>menitipkan sayur</strong> untuk dibelikan
+          di pasar esok pagi, langsung dari halaman ini tanpa perlu datang ke rumah.
+          Jika ada produk yang ternyata <strong>habis di pasar</strong>, produk itu tidak
+          dibelikan dan Anda akan mendapat pemberitahuan di halaman ini.
+        </p>
+      </div>
+    </section>
+
+    <!-- Form titipan baru -->
+    <section class="form-panel" aria-label="Formulir titip beli">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Buat Titipan</p>
+          <h2>Pilih sayur yang ingin dititipkan</h2>
+        </div>
+        <span class="panel-date" id="tanggal-pasar">-</span>
+      </div>
+
+      <div class="product-picker">
+        <div class="search-field">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="search-produk" placeholder="Cari produk sayur..." aria-label="Cari produk sayur">
+        </div>
+        <p class="picker-hint" id="picker-hint">Ketuk produk untuk menambahkannya ke daftar titipan.</p>
+        <div class="product-list" id="product-list" aria-live="polite"></div>
+      </div>
+
+      <div class="cart-panel" aria-label="Daftar titipan">
+        <h3 class="sub-head">Daftar Titipan Anda</h3>
+        <div class="titip-items" id="titip-items"></div>
+        <div class="catatan-row">
+          <label for="catatan-titipan">Catatan untuk Admin (opsional)</label>
+          <textarea id="catatan-titipan" rows="2" maxlength="240"
+            placeholder="Contoh: pilih yang masih segar, tolong dibungkus terpisah"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="button button-primary button-full" id="kirim-titipan" type="button">Kirim Titipan ke
+            Admin</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Daftar titipan yang sudah dikirim -->
+    <section class="riwayat-panel" aria-label="Riwayat titipan">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Riwayat Titipan</p>
+          <h2>Titipan Anda</h2>
+        </div>
+        <button class="button button-light" id="refresh-titipan" type="button">↻ Muat Ulang</button>
+      </div>
+      <div class="titip-list" id="titip-list" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <div class="container footer-inner">
+      <p>Warung Sayur Diky &copy; 2026. Titip beli diproses setiap pagi saat ke pasar.</p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast">Tersimpan</div>
+
+  <script src="storage-helper.js"></script>
+  <script src="titip-helper.js"></script>
+  <script src="titip.js"></script>
+</body>
+
+</html>

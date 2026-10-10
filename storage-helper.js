@@ -51,6 +51,11 @@
       'orders': `dikyOrders_${user.id}`,
       'hutang': `dikyHutang_${user.id}`,
       'hutangAdmin': `dikyHutangAdmin_${user.id}`,
+      // Titip beli sayur ke pasar (pesanan malam, dibelikan besok pagi).
+      // Terpisah total dari kasbon/hutang: titipan baru menjadi hutang
+      // setelah benar-benar dibeli di pasar dan difinalisasi oleh admin.
+      'titipan': `dikyTitipan_${user.id}`,
+      'titipanAdmin': `dikyTitipanAdmin_${user.id}`,
       'checkoutItems': `dikyCheckoutItems_${user.id}`,
       'checkoutSummary': `dikyCheckoutSummary_${user.id}`,
       'lastOrder': `dikyLastOrder_${user.id}`,
