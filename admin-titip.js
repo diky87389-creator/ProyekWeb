@@ -141,8 +141,8 @@
   function refreshRequestStatus(request) {
     if (String(request.status) === 'selesai' || String(request.status) === 'dibatalkan') return;
     var counts = Helper.countByStatus(request.items);
-    if (counts.habis_dipasar > 0 && counts.dibeli > 0) request.status = 'sebagian_habis';
-    else if (counts.habis_dipasar > 0 && counts.dibeli === 0) request.status = 'sebagian_habis';
+    // Ada item habis di pasar (sebagian atau seluruhnya) -> 'sebagian_habis'.
+    if (counts.habis_dipasar > 0) request.status = 'sebagian_habis';
     else if (counts.dibeli > 0) request.status = 'diproses';
     else request.status = 'menunggu_dibeli';
     request.totalDitagihkan = Helper.computeDitagihkan(request.items);
