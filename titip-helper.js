@@ -388,6 +388,12 @@
       else { try { localStorage.setItem(ctxKey, JSON.stringify(ctx)); } catch (error) { /* abaikan */ } }
     }
 
+    // Tombol 'Checkout Sekarang' hanya boleh sekali: begitu item checkout
+    // disiapkan, titipan langsung ditandai 'sudah_checkout' (tersinkron ke
+    // admin) sehingga tombol tidak muncul / tidak bisa diklik lagi, dan
+    // panggilan ulang helper ini selanjutnya akan ditolak.
+    updateStatusBothCopies(request.id, 'sudah_checkout', 'Sudah dichekout pelanggan.');
+
     // Smart Guide: tahap 'checkout' agar panduan mengarah ke checkout.html.
     if (typeof simpanPesananBaru === 'function') {
       simpanPesananBaru({ items: items, updatedAt: new Date().toISOString() });
