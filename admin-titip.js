@@ -3,14 +3,16 @@
 // === Kelola Titipan (Admin) — Warung Sayur Diky ===
 // Alur: pelanggan menitip malam hari -> admin pergi ke pasar besok pagi ->
 // tiap item ditandai "Dibeli" (isi harga pasar) atau "Habis di Pasar" ->
-// admin menekan "Finalisasi": item yang dibeli menjadi catatan kasbon
-// (dikyHutang_*) sehingga tampil di hutang.html & admin-hutang.html,
-// item yang habis ditandai + pelanggan melihat pesan pemberitahuan.
+// admin menekan "Finalisasi": titipan dikirim ke pelanggan untuk dichekout
+// di checkout.html (pelanggan memilih metode pengiriman & pembayaran).
+// Titipan TIDAK langsung menjadi kasbon; item yang habis tidak ditagihkan
+// dan pelanggan melihat pesan pemberitahuan di halaman Titip Beli.
 //
 // CATATAN ATURAN:
 //  - Tidak ada tombol "Hapus" permanen dan tidak ada tombol
 //    "Hapus pesanan untuk diarsipkan" di modul ini (sesuai permintaan).
-//  - Key kasbon hanya DITULIS saat finalisasi, tidak pernah dihapus.
+//  - Key kasbon (dikyHutang_*) tidak pernah disentuh modul ini; pembayaran
+//    titipan diselesaikan pelanggan sendiri saat checkout.
 
 (function () {
   var Helper = window.TitipHelper;
@@ -84,30 +86,63 @@
       '<p class="titip-name">' + esc(request.customerName || 'Pelanggan') + '</p>' +
       '<p class="titip-meta">Akun: @' + esc(request.username || '-') + ' · ID: ' + esc(ownerId || '-') + '</p>' +
       '<p class="titip-meta">Dikirim: ' + esc(Helper.formatWaktu(request.createdAt)) + ' · Untuk pasar: ' + esc(Helper.formatTanggal(request.untukTanggal)) + '</p>' +
-      '</div><span class="status-pill status-' + esc(request.status) + '">' + esc(Helper.requestStatusLabel(request.status)) + '</span></div>' +
+      '</div><span class="status-pill status-' + esc(request.status) + '">' + esc(requestStatusText(request)) + '</span></div>' +
       (habisMsg ? '<p class="notice notice-habis">⚠️ ' + esc(habisMsg) + '</p>' : '') +
-      '<div class="items">' + (request.items || []).map(function (item) { return itemMarkup(request.id, item); }).join('') + '</div>' +
+      '<div class="items">' + (request.items || []).map(function (item) { return itemMarkup(request, item); }).join('') + '</div>' +
       '<div class="titip-bottom"><strong class="total">Ditagihkan: ' + money(total) + '</strong>' +
       '<div class="actions">' +
       '<button class="action" type="button" data-detail-id="' + esc(request.id) + '">Lihat Detail</button>' +
-      (canFinalize ? '<button class="action finalize" type="button" data-finalize-id="' + esc(request.id) + '">✅ Finalisasi ke Kasbon</button>' : '') +
+      (canFinalize ? '<button class="action finalize" type="button" data-finalize-id="' + esc(request.id) + '">✅ Kirim ke Checkout Pelanggan</button>' : '') +
       '</div></div>' +
       '</article>';
   }
 
-  function itemMarkup(requestId, item) {
+  function itemMarkup(request, item) {
     var isDibeli = String(item.status) === 'dibeli';
     var isHabis = String(item.status) === 'habis_dipasar';
+    // Setelah finalisasi / checkout, item tidak bisa diubah lagi dari panel ini.
+    var locked = ['siap_checkout', 'sudah_checkout', 'selesai', 'dibatalkan'].indexOf(String(request.status)) !== -1;
     var btnClass = isDibeli ? 'is-dibeli' : (isHabis ? 'is-habis' : 'is-diminta');
     var btnLabel = isDibeli ? '✓ Dibeli' : (isHabis ? '✕ Habis di Pasar' : 'Tandai');
+    var controls = locked ? '' :
+      '<input type="number" min="0" step="1" placeholder="Harga pasar" value="' + (Number(item.hargaPasar) > 0 ? Number(item.hargaPasar) : '') + '" data-price-id="' + esc(item.id) + '" aria-label="Harga pasar ' + esc(item.name) + '">' +
+      '<button class="toggle-btn ' + btnClass + '" type="button" data-toggle-id="' + esc(item.id) + '" data-request-id="' + esc(request.id) + '">' + esc(btnLabel) + '</button>';
     return '<div class="item" data-item-id="' + esc(item.id) + '">' +
       '<img src="' + esc(Helper.resolveProductImage(item)) + '" alt="' + esc(item.name) + '">' +
       '<div class="item-info"><p class="item-name">' + esc(item.name) + '</p>' +
       '<p class="item-meta">' + esc(item.qty) + ' × ' + esc(item.unit || 'satuan menyesuaikan') + ' · ' + esc(Helper.itemStatusLabel(item.status)) + '</p></div>' +
-      '<div class="item-controls">' +
-      '<input type="number" min="0" step="1" placeholder="Harga pasar" value="' + (Number(item.hargaPasar) > 0 ? Number(item.hargaPasar) : '') + '" data-price-id="' + esc(item.id) + '" aria-label="Harga pasar ' + esc(item.name) + '">' +
-      '<button class="toggle-btn ' + btnClass + '" type="button" data-toggle-id="' + esc(item.id) + '" data-request-id="' + esc(requestId) + '">' + esc(btnLabel) + '</button>' +
-      '</div></div>';
+      '<div class="item-controls">' + controls + '</div></div>';
+  }
+
+  // Status pesanan yang terkait titipan (setelah pelanggan checkout).
+  function cariStatusPesanan(titipanId) {
+    if (!titipanId) return null;
+    try {
+      for (var i = 0; i < localStorage.length; i += 1) {
+        var key = localStorage.key(i);
+        if (!key || key.indexOf('dikyOrders_') !== 0) continue;
+        var parsed = JSON.parse(localStorage.getItem(key) || '[]');
+        var entries = Array.isArray(parsed) ? parsed : [];
+        for (var j = 0; j < entries.length; j += 1) {
+          if (entries[j] && String(entries[j].titipanId) === String(titipanId)) {
+            return String(entries[j].status || 'menunggu');
+          }
+        }
+      }
+    } catch (error) { /* abaikan */ }
+    return null;
+  }
+
+  function requestStatusText(request) {
+    if (String(request.status) === 'sudah_checkout') {
+      var orderStatus = cariStatusPesanan(request.id);
+      if (orderStatus === 'selesai') return 'Pesanan Selesai';
+      if (orderStatus === 'dikirim') return 'Pesanan Dikirim ke Pelanggan';
+      if (orderStatus === 'siap_diambil') return 'Pesanan Siap Diambil';
+      if (orderStatus === 'dibatalkan') return 'Pesanan Dibatalkan';
+      if (orderStatus) return 'Pesanan Sedang Dikemas';
+    }
+    return Helper.requestStatusLabel(request.status);
   }
 
   function findRequest(id) { return requests.find(function (r) { return String(r.id) === String(id); }); }
@@ -139,7 +174,7 @@
 
   // Status permintaan diturunkan dari status item.
   function refreshRequestStatus(request) {
-    if (String(request.status) === 'selesai' || String(request.status) === 'dibatalkan') return;
+    if (['selesai', 'dibatalkan', 'siap_checkout', 'sudah_checkout'].indexOf(String(request.status)) !== -1) return;
     var counts = Helper.countByStatus(request.items);
     // Ada item habis di pasar (sebagian atau seluruhnya) -> 'sebagian_habis'.
     if (counts.habis_dipasar > 0) request.status = 'sebagian_habis';
@@ -157,7 +192,9 @@
     return true;
   }
 
-  // Finalisasi: item "dibeli" menjadi kasbon (hutang), status menjadi selesai.
+  // Finalisasi: titipan yang itemnya sudah dibelikan dikirim ke pelanggan
+  // untuk dichekout di checkout.html. Titipan TIDAK langsung menjadi
+  // kasbon/hutang; pelanggan memilih metode pengiriman & pembayaran sendiri.
   function finalize(request) {
     if (!request) return;
     var counts = Helper.countByStatus(request.items);
@@ -167,84 +204,22 @@
     }
     var total = Helper.computeDitagihkan(request.items);
     var habisCount = counts.habis_dipasar;
-    var message = 'Finalisasi titipan ' + request.id + '?\n\n' +
+    var message = 'Kirim titipan ' + request.id + ' ke pelanggan untuk checkout?\n\n' +
       'Item dibeli: ' + counts.dibeli + '\n' +
       'Item habis di pasar: ' + habisCount + '\n' +
-      'Total ditagihkan: ' + money(total) + '\n\n' +
-      'Item yang dibeli akan menjadi catatan kasbon pelanggan (tampil di hutang.html & admin-hutang.html).';
+      'Total harga pasar: ' + money(total) + '\n\n' +
+      'Pelanggan akan menekan tombol "Checkout Sekarang" di halaman Titip Beli, lalu memilih metode pengiriman dan pembayaran di halaman checkout.';
     if (!window.confirm(message)) return;
 
-    if (!writeDebtFromTitipan(request)) {
-      window.alert('Kasbon tidak dapat disimpan karena penyimpanan browser penuh. Titipan belum difinalisasi.');
+    request.status = 'siap_checkout';
+    request.finalizedAt = new Date().toISOString();
+    if (!persist(request)) {
+      window.alert('Perubahan titipan tidak dapat disimpan karena penyimpanan browser penuh.');
       return;
     }
-
-    request.status = 'selesai';
-    request.finalizedAt = new Date().toISOString();
-    persist(request);
-    Helper.appendArchive(request);
     render();
-    window.alert('Titipan difinalisasi. ' + (habisCount ? (habisCount + ' item ditandai habis di pasar dan tidak ditagihkan.') : 'Semua item berhasil ditagihkan.'));
-  }
-
-  // Tulis kasbon untuk titipan yang dibeli (pola sama dengan checkout.js).
-  function writeDebtFromTitipan(request) {
-    var ownerId = ownerIdOf(request);
-    var hutangKey = ownerId ? 'dikyHutang_' + ownerId : null;
-    var adminKey = ownerId ? 'dikyHutangAdmin_' + ownerId : null;
-    if (!hutangKey) return false;
-
-    var dibeli = (request.items || []).filter(function (item) { return String(item.status) === 'dibeli'; });
-    var items = dibeli.map(function (item) {
-      return {
-        id: item.id,
-        name: item.name,
-        qty: item.qty,
-        quantity: item.qty,
-        price: Helper.computeDitagihkan([item]) / Math.max(1, item.qty),
-        unit: item.unit || '',
-        image: item.image || '',
-        fromTitipan: request.id
-      };
-    });
-    var total = Helper.computeDitagihkan(request.items);
-
-    var debt = {
-      id: 'HUT-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      orderId: request.id,
-      userId: ownerId || null,
-      customerName: request.customerName || 'Pelanggan',
-      username: request.username || '',
-      phone: request.phone || null,
-      items: items,
-      subtotal: total,
-      shippingCost: 0,
-      totalAmount: total,
-      date: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      status: 'belum',
-      note: 'Dari Titipan Pasar ' + request.id
-    };
-
-    var readArr = function (key) {
-      try { var p = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(p) ? p : []; }
-      catch (error) { return []; }
-    };
-
-    var userDebts = readArr(hutangKey);
-    if (userDebts.some(function (d) { return d && String(d.id) === String(debt.id); })) return true;
-    userDebts.unshift(debt);
-    try { localStorage.setItem(hutangKey, JSON.stringify(userDebts)); }
-    catch (error) { return false; }
-
-    if (adminKey) {
-      var adminDebts = readArr(adminKey);
-      if (!adminDebts.some(function (d) { return d && String(d.id) === String(debt.id); })) {
-        adminDebts.unshift(Object.assign({}, debt));
-        try { localStorage.setItem(adminKey, JSON.stringify(adminDebts)); } catch (error) { /* arsip admin opsional */ }
-      }
-    }
-    return true;
+    window.alert('Titipan dikirim ke pelanggan untuk checkout. ' +
+      (habisCount ? (habisCount + ' item ditandai habis di pasar dan tidak ditagihkan.') : 'Semua item berhasil dibelikan.'));
   }
 
   function showDetail(id) {
@@ -260,7 +235,7 @@
       '<p><strong>Telepon:</strong> ' + esc(request.phone || '-') + '</p>' +
       '<p><strong>Dikirim:</strong> ' + esc(Helper.formatWaktu(request.createdAt)) + '</p>' +
       '<p><strong>Untuk pasar:</strong> ' + esc(Helper.formatTanggal(request.untukTanggal)) + '</p>' +
-      '<p><strong>Status:</strong> ' + esc(Helper.requestStatusLabel(request.status)) + '</p>' +
+      '<p><strong>Status:</strong> ' + esc(requestStatusText(request)) + '</p>' +
       '<p><strong>Total ditagihkan:</strong> ' + money(Helper.computeDitagihkan(request.items)) + '</p>' +
       '<ul class="detail-items">' + (request.items || []).map(function (item) {
         return '<li>' + esc(item.name) + ' × ' + esc(item.qty) + ' — ' + esc(Helper.itemStatusLabel(item.status)) +
