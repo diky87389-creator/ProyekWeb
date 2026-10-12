@@ -74,6 +74,33 @@
     list.innerHTML = visible.map(cardMarkup).join('');
   }
 
+  // Foto profil pelanggan: diambil LANGSUNG dari data akun pelanggan
+  // (dikyRegisteredUsers, foto yang diperbarui di profile.html) setiap kali
+  // kartu dirender, sehingga selalu sinkron dengan foto profil terbaru.
+  function resolvePelangganFoto(request) {
+    try {
+      var users = JSON.parse(localStorage.getItem('dikyRegisteredUsers') || '[]');
+      if (!Array.isArray(users)) return null;
+      var matched = users.find(function (candidate) {
+        if (!candidate) return false;
+        if (request.userId && String(candidate.id) === String(request.userId)) return true;
+        if (request.username && String(candidate.username || '').toLowerCase() === String(request.username).toLowerCase()) return true;
+        return false;
+      });
+      if (matched) return matched.profileImage || matched.avatarUrl || null;
+    } catch (error) { /* abaikan */ }
+    return null;
+  }
+
+  // Avatar kartu: foto profil bila tersedia, atau inisial nama sebagai cadangan.
+  function avatarMarkup(request) {
+    var foto = resolvePelangganFoto(request);
+    if (foto) {
+      return '<img class="customer-avatar" src="' + esc(foto) + '" alt="Foto profil ' + esc(request.customerName || 'Pelanggan') + '">';
+    }
+    return '<span class="customer-avatar-initials">' + esc(buildInitials(request.customerName)) + '</span>';
+  }
+
   function cardMarkup(request) {
     var canFinalize = ['menunggu_dibeli', 'diproses', 'sebagian_habis'].indexOf(String(request.status)) !== -1;
     var habisMsg = Helper.pesanHabisDiPasar(request);
@@ -82,7 +109,7 @@
     return '<article class="titip-card" data-titip-id="' + esc(request.id) + '">' +
       '<div class="titip-top"><div>' +
       '<p class="titip-id">' + esc(request.id || 'Tanpa ID') + '</p>' +
-      '<span class="customer-avatar-initials">' + esc(buildInitials(request.customerName)) + '</span>' +
+      avatarMarkup(request) +
       '<p class="titip-name">' + esc(request.customerName || 'Pelanggan') + '</p>' +
       '<p class="titip-meta">Akun: @' + esc(request.username || '-') + ' · ID: ' + esc(ownerId || '-') + '</p>' +
       '<p class="titip-meta">Dikirim: ' + esc(Helper.formatWaktu(request.createdAt)) + ' · Untuk pasar: ' + esc(Helper.formatTanggal(request.untukTanggal)) + '</p>' +
@@ -230,6 +257,7 @@
       '<div class="detail">' +
       '<p><strong>ID Titipan:</strong> ' + esc(request.id) + '</p>' +
       '<p><strong>Pelanggan:</strong> ' + esc(request.customerName || '-') + '</p>' +
+      '<p class="detail-foto-row"><strong>Foto Profil:</strong> ' + avatarMarkup(request) + '</p>' +
       '<p><strong>Username:</strong> @' + esc(request.username || '-') + '</p>' +
       '<p><strong>ID Akun:</strong> ' + esc(ownerId || '-') + '</p>' +
       '<p><strong>Telepon:</strong> ' + esc(request.phone || '-') + '</p>' +
