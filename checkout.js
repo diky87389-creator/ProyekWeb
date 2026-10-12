@@ -7,6 +7,14 @@ const addressFieldGroup = document.getElementById('address-field-group');
 const cancelCheckoutButton = document.getElementById('cancel-checkout-button');
 const deliveryMethodInputs = checkoutForm.querySelectorAll('input[name="deliveryMethod"]');
 
+// Konteks checkout titipan: bila pesanan berasal dari halaman Titip Beli,
+// key dikyTitipanCheckout_<userId> menautkan checkout ini dengan titipannya.
+function readTitipanCheckoutContext() {
+  const key = getUserStorageKey('titipanCheckout');
+  if (!key) return null;
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; }
+}
+
 function getCurrentRegisteredUser() {
   const activeUser = typeof window.getActiveUser === 'function' ? window.getActiveUser() : null;
   if (!activeUser || !activeUser.id) return null;
@@ -389,6 +397,9 @@ function buildOrderData() {
   const userEmail = (activeUser && activeUser.emailAddress) || null;
   const userGender = (activeUser && activeUser.gender) || null;
   const userBirthDate = (activeUser && activeUser.birthDate) || null;
+  // Bila checkout berasal dari Titip Beli, tautkan pesanan dengan titipannya
+  // agar status titipan bisa mengikuti tahap pesanan (Dikemas -> Dikirim -> Selesai).
+  const titipanContext = readTitipanCheckoutContext();
 
   return {
     id: `ORD-${Date.now()}`,
@@ -400,6 +411,7 @@ function buildOrderData() {
     gender: userGender,
     birthDate: userBirthDate,
     createdAt: new Date().toISOString(),
+    titipanId: titipanContext && titipanContext.titipanId ? String(titipanContext.titipanId) : null,
     cart,
     totalPrice: subtotal + shippingCost,
     shippingCost,
@@ -470,6 +482,17 @@ async function submitOrder() {
       window.alert('Catatan Hutang tidak dapat disimpan karena penyimpanan browser penuh. Pesanan belum dilanjutkan. Hapus sebagian data browser lama atau coba lagi.');
       return;
     }
+  }
+
+  // Titip Beli: tandai titipan asal sudah dichekout pelanggan, lalu hapus
+  // konteks checkout titipan (tautan permanen kini ada di orderData.titipanId).
+  const titipanContext = readTitipanCheckoutContext();
+  if (titipanContext && titipanContext.titipanId && window.TitipHelper && typeof window.TitipHelper.tandaiSudahCheckout === 'function') {
+    window.TitipHelper.tandaiSudahCheckout(titipanContext.titipanId);
+  }
+  const titipanCheckoutKey = getUserStorageKey('titipanCheckout');
+  if (titipanCheckoutKey) {
+    localStorage.removeItem(titipanCheckoutKey);
   }
 
   // Save active order using simpanPesananAktif helper
@@ -740,7 +763,20 @@ function hapusPesananCheckout() {
   // tombol terasa "harus diklik berkali-kali" (klik saat dialog tertutup
   // hilang / ditelan, dan di beberapa konteks confirm() selalu false
   // sehingga fungsi keluar tanpa menghapus apa pun). Sekali klik = langsung hapus.
-  if (typeof window.hapusPesananDariCheckout === 'function') {
+  // Titip Beli: bila pesanan berasal dari titipan, batalkan titipannya
+  // (status 'dibatalkan' tersinkron ke panel admin) dan jangan sentuh
+  // keranjang belanja user, karena item titipan bukan berasal dari keranjang.
+  const titipanContext = readTitipanCheckoutContext();
+  if (titipanContext && titipanContext.titipanId) {
+    if (window.TitipHelper && typeof window.TitipHelper.batalkanTitipan === 'function') {
+      window.TitipHelper.batalkanTitipan(titipanContext.titipanId);
+    }
+    ['checkoutItems', 'checkoutSummary', 'checkoutForm', 'pesananBaru', 'titipanCheckout'].forEach((type) => {
+      const key = getUserStorageKey(type);
+      if (key) localStorage.removeItem(key);
+    });
+    if (typeof clearUserLastPosition === 'function') clearUserLastPosition();
+  } else if (typeof window.hapusPesananDariCheckout === 'function') {
     window.hapusPesananDariCheckout();
   } else {
     // Fallback bila helper belum termuat: bersihkan data checkout milik user aktif.
