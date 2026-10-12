@@ -25,6 +25,7 @@
   var catatanField = document.getElementById('catatan-titipan');
   var kirimButton = document.getElementById('kirim-titipan');
   var titipListEl = document.getElementById('titip-list');
+  var aktifListEl = document.getElementById('titip-aktif-list');
   var refreshButton = document.getElementById('refresh-titipan');
   var toast = document.getElementById('toast');
 
@@ -82,13 +83,16 @@
     }
 
     visible.forEach(function (product) {
-      var unit = defaultUnit(product);
       var habis = isHabis(product);
       var selected = draftItems.some(function (item) { return String(item.id) === String(product.id); });
 
-      var chip = document.createElement('button');
-      chip.type = 'button';
+      // Kartu produk berisi pilihan satuan yang SAMA dengan "Pilihan satuan
+      // dan harga" yang dibuat admin pada produk ini di admin-products.html.
+      // Harga tidak dipakai di sini; harga pasar ditentukan admin nantinya.
+      var chip = document.createElement('div');
       chip.className = 'product-chip' + (selected ? ' is-selected' : '');
+      chip.setAttribute('role', 'button');
+      chip.setAttribute('tabindex', '0');
       chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
 
       var img = document.createElement('img');
@@ -102,16 +106,66 @@
 
       var meta = document.createElement('p');
       meta.className = 'chip-meta';
-      meta.textContent = unit ? ('Perkiraan satuan: ' + unit.name) : 'Satuan belum diatur';
+      meta.textContent = product.units.length > 1
+        ? 'Pilih satuan sesuai pilihan admin. Harga menyusul dari pasar.'
+        : (defaultUnit(product) ? ('Perkiraan satuan: ' + defaultUnit(product).name) : 'Satuan belum diatur');
 
       var status = document.createElement('span');
       status.className = 'chip-status ' + (habis ? 'status-habis' : 'status-tersedia');
       status.textContent = habis ? 'Stok Habis (bisa dititip)' : 'Tersedia (bisa dititip)';
 
       chip.append(img, name, meta, status);
+
+      // Pilihan satuan: persis daftar satuan yang admin buat pada produk ini
+      // di admin-products.html (per kg, per buah / pcs, per bungkus, dsb.).
+      if (product.units.length > 1) {
+        var unitRow = document.createElement('div');
+        unitRow.className = 'unit-options';
+        var draft = draftItems.find(function (item) { return String(item.id) === String(product.id); });
+        product.units.forEach(function (unit) {
+          var unitButton = document.createElement('button');
+          unitButton.type = 'button';
+          var active = !!(selected && draft && draft.unit === unit.name);
+          unitButton.className = 'unit-option' + (active ? ' is-active' : '');
+          unitButton.textContent = unit.name;
+          unitButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+          unitButton.addEventListener('click', function (event) {
+            event.stopPropagation();
+            pilihSatuan(product, unit.name);
+          });
+          unitRow.append(unitButton);
+        });
+        chip.append(unitRow);
+      }
+
       chip.addEventListener('click', function () { toggleProduct(product); });
+      chip.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          toggleProduct(product);
+        }
+      });
       productList.appendChild(chip);
     });
+  }
+
+  // Memilih satuan tertentu pada produk (menimpa satuan sebelumnya).
+  // Satuan berasal dari "Pilihan satuan dan harga" admin di admin-products.html.
+  function pilihSatuan(product, unitName) {
+    var draft = draftItems.find(function (item) { return String(item.id) === String(product.id); });
+    if (draft) {
+      draft.unit = unitName;
+    } else {
+      draftItems.push({
+        id: String(product.id),
+        name: product.name,
+        unit: unitName,
+        qty: 1,
+        image: product.image || ''
+      });
+    }
+    renderProducts();
+    renderDraft();
   }
 
   function toggleProduct(product) {
@@ -226,33 +280,89 @@
     catatanField.value = '';
     renderProducts();
     renderDraft();
+    renderAktif();
     renderRiwayat();
     showToast('Titipan terkirim. Admin akan membelikannya di pasar besok pagi.');
   }
 
-  // --- Riwayat titipan -----------------------------------------------------
+  // --- Titipan aktif & riwayat ----------------------------------------------
+  // ATURAN RIWAYAT: titipan baru muncul di "Riwayat Titipan" HANYA setelah
+  // pesanannya mencapai tab "Selesai" di orders.html (admin menekan tombol
+  // "Selesai" di admin-orders.html). Setelah finalisasi admin, titipan masih
+  // tampil di "Titipan Aktif" sambil menunggu checkout / sedang diproses.
+  function renderAktif() {
+    var requests = Helper.getTitipanUser().filter(function (request) {
+      return ['selesai', 'dibatalkan'].indexOf(String(request.status)) === -1;
+    });
+
+    aktifListEl.innerHTML = '';
+
+    if (!requests.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty-state';
+      var h = document.createElement('h3');
+      h.textContent = 'Belum ada titipan aktif';
+      var p = document.createElement('p');
+      p.textContent = 'Titipan yang sudah kamu kirim ke admin akan tampil di sini beserta statusnya.';
+      empty.append(h, p);
+      aktifListEl.appendChild(empty);
+      return;
+    }
+
+    requests.forEach(function (request) {
+      aktifListEl.appendChild(createRequestCard(request, true));
+    });
+  }
+
   function renderRiwayat() {
-    var requests = Helper.getTitipanUser();
+    var requests = Helper.getTitipanUser().filter(function (request) {
+      if (String(request.status) === 'dibatalkan') return false;
+      if (String(request.status) === 'selesai') return true;
+      return Helper.cariStatusPesananTitipan(request.id) === 'selesai';
+    });
+
     titipListEl.innerHTML = '';
 
     if (!requests.length) {
       var empty = document.createElement('div');
       empty.className = 'empty-state';
       var h = document.createElement('h3');
-      h.textContent = 'Belum ada titipan';
+      h.textContent = 'Belum ada riwayat titipan';
       var p = document.createElement('p');
-      p.textContent = 'Anda belum pernah menitipkan sayur. Pilih produk di atas lalu kirim titipan ke admin.';
+      p.textContent = 'Titipan masuk ke riwayat setelah pesanannya mencapai tab Selesai di halaman Pesanan.';
       empty.append(h, p);
       titipListEl.appendChild(empty);
       return;
     }
 
     requests.forEach(function (request) {
-      titipListEl.appendChild(createRequestCard(request));
+      titipListEl.appendChild(createRequestCard(request, false));
     });
   }
 
-  function createRequestCard(request) {
+  // Tombol Checkout: mengirim item titipan yang sudah dibelikan admin
+  // (dengan harga pasar) ke halaman checkout.html. Pelanggan memilih
+  // metode pengiriman & pembayaran di sana, seperti pesanan biasa.
+  function checkoutTitipan(requestId) {
+    if (typeof isValidSession !== 'function' || !isValidSession()) {
+      window.location.href = 'login.html';
+      return;
+    }
+    var result = Helper.siapkanCheckoutTitipan(requestId);
+    if (!result || !result.ok) {
+      showToast((result && result.reason) || 'Titipan belum siap untuk di-checkout.');
+      return;
+    }
+    showToast('Membuka halaman checkout...');
+    if (typeof setUserLastPosition === 'function') setUserLastPosition('checkout.html');
+    // Akses sah ke checkout.html: dari tombol Checkout di halaman Titip Beli.
+    if (window.NavigationGuard && typeof window.NavigationGuard.grantAccess === 'function') {
+      window.NavigationGuard.grantAccess('checkout.html', 'titip_checkout_button');
+    }
+    window.setTimeout(function () { window.location.href = 'checkout.html'; }, 350);
+  }
+
+  function createRequestCard(request, isAktif) {
     var card = document.createElement('article');
     card.className = 'titip-card';
 
@@ -272,8 +382,7 @@
 
     var status = document.createElement('span');
     status.className = 'status-pill status-' + request.status;
-    status.textContent = Helper.requestStatusLabel(request.status);
-
+    status.textContent = isAktif ? Helper.requestStatusLabel(request.status) : 'Selesai';
     head.append(headLeft, status);
     card.appendChild(head);
 
@@ -294,13 +403,11 @@
       card.appendChild(notice);
     }
 
-    // Tagihan (hanya item yang benar-benar dibeli)
     var total = Helper.computeDitagihkan(request.items);
     if (total > 0) {
       var tagihan = document.createElement('div');
       tagihan.className = 'notice-box notice-tagihan';
-      tagihan.textContent = 'Total yang dibelikan untuk Anda: ' + Helper.money(total) +
-        '. Nominal ini akan muncul sebagai tagihan/hutang setelah difinalisasi admin.';
+      tagihan.textContent = 'Total yang dibelikan untuk Anda: ' + Helper.money(total) + '.';
       card.appendChild(tagihan);
 
       var totalRow = document.createElement('div');
@@ -311,6 +418,27 @@
       value.textContent = Helper.money(total);
       totalRow.append(label, value);
       card.appendChild(totalRow);
+    }
+
+    if (isAktif && String(request.status) === 'siap_checkout') {
+      // Tombol menuju checkout.html setelah admin memfinalisasi titipan.
+      var actions = document.createElement('div');
+      actions.className = 'titip-card-actions';
+      var checkoutBtn = document.createElement('button');
+      checkoutBtn.type = 'button';
+      checkoutBtn.className = 'button button-primary';
+      checkoutBtn.textContent = 'Checkout Sekarang';
+      checkoutBtn.addEventListener('click', function () { checkoutTitipan(request.id); });
+      var hint = document.createElement('p');
+      hint.className = 'checkout-hint';
+      hint.textContent = 'Admin sudah memfinalisasi titipanmu. Lanjutkan checkout untuk memilih metode pengiriman dan pembayaran.';
+      actions.append(checkoutBtn, hint);
+      card.appendChild(actions);
+    } else if (isAktif && String(request.status) === 'sudah_checkout') {
+      var info = document.createElement('div');
+      info.className = 'notice-box notice-tagihan';
+      info.textContent = 'Pesanan titipanmu sudah kamu checkout. Pantau statusnya di halaman Pesanan (tab Dikemas / Dikirim / Selesai).';
+      card.appendChild(info);
     }
 
     return card;
@@ -369,6 +497,7 @@
     renderInfoBanner();
     renderProducts();
     renderDraft();
+    renderAktif();
     renderRiwayat();
 
     searchProduk.addEventListener('input', renderProducts);
@@ -377,6 +506,8 @@
       loadProducts();
       renderInfoBanner();
       renderProducts();
+      renderAktif();
+      renderAktif();
       renderRiwayat();
       showToast('Data titipan dimuat ulang.');
     });
@@ -386,6 +517,7 @@
       if (event.key.indexOf('dikyTitipan') === 0 || event.key === 'dikyProducts') {
         loadProducts();
         renderProducts();
+        renderAktif();
         renderRiwayat();
       }
     });
