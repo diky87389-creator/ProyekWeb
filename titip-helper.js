@@ -13,8 +13,10 @@
  *    ke rumah admin.
  *  - Jika produk tertentu ternyata habis di pasar, admin menandai item itu
  *    'habis_dipasar' sehingga TIDAK dibelikan dan TIDAK ditagihkan.
- *  - Titipan BARU menjadi kasbon/hutang setelah admin memfinalisasi titipan
- *    (hanya item yang benar-benar dibeli, dengan harga pasar).
+ *  - Setelah admin memfinalisasi titipan (harga pasar per item), pelanggan
+ *    melakukan CHECKOUT sendiri di checkout.html: memilih metode pengiriman
+ *    dan pembayaran seperti pesanan biasa. Titipan TIDAK langsung menjadi
+ *    kasbon/hutang.
  *
  * Karena itu titipan disimpan pada key miliknya sendiri:
  *   - Pelanggan : dikyTitipan_<userId>        (lewat getUserStorageKey('titipan'))
@@ -32,7 +34,7 @@
   var FALLBACK_IMAGE = 'images/Toko Sayur Online.png';
 
   // Status satu titipan (level permintaan, bukan level item).
-  var REQUEST_STATUSES = ['menunggu_dibeli', 'diproses', 'sebagian_habis', 'siap_diambil', 'selesai', 'dibatalkan'];
+  var REQUEST_STATUSES = ['menunggu_dibeli', 'diproses', 'sebagian_habis', 'siap_checkout', 'sudah_checkout', 'siap_diambil', 'selesai', 'dibatalkan'];
 
   // Status satu item di dalam titipan.
   var ITEM_STATUSES = ['diminta', 'dibeli', 'habis_dipasar'];
@@ -333,6 +335,137 @@
     return changed ? writeArray(userKey, userList) : true;
   }
 
+  // --- Checkout titipan (pelanggan) -----------------------------------------
+  // Konteks checkout: menautkan proses checkout.html aktif dengan titipan asal.
+  function getCheckoutContext() {
+    var key = typeof getUserStorageKey === 'function' ? getUserStorageKey('titipanCheckout') : null;
+    if (!key) return null;
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; }
+  }
+
+  function removeCheckoutContext() {
+    var key = typeof getUserStorageKey === 'function' ? getUserStorageKey('titipanCheckout') : null;
+    if (key) { try { localStorage.removeItem(key); } catch (error) { /* abaikan */ } }
+  }
+
+  // Ubah item "dibeli" (harga pasar) pada titipan menjadi daftar item checkout.
+  function siapkanCheckoutTitipan(requestId) {
+    var request = getTitipanUser().find(function (entry) { return String(entry.id) === String(requestId); });
+    if (!request) return { ok: false, reason: 'Titipan tidak ditemukan.' };
+    if (String(request.status) !== 'siap_checkout') {
+      return { ok: false, reason: 'Titipan belum difinalisasi admin atau sudah diproses.' };
+    }
+    var dibeli = (request.items || []).filter(function (item) {
+      return String(item.status) === 'dibeli' && safeNumber(item.hargaPasar) > 0;
+    });
+    if (!dibeli.length) return { ok: false, reason: 'Tidak ada item yang dibelikan di pasar.' };
+
+    var items = dibeli.map(function (item) {
+      return {
+        cartItemId: 'TITIP-' + request.id + '-' + item.id,
+        id: item.id,
+        name: item.name,
+        unit: item.unit || '',
+        unitIndex: 0,
+        price: safeNumber(item.hargaPasar),
+        quantity: Math.floor(safeNumber(item.qty != null ? item.qty : item.quantity)),
+        image: (typeof item.image === 'string' && item.image.indexOf('data:') !== 0) ? item.image : '',
+        fromTitipan: request.id
+      };
+    });
+
+    var checkoutKey = typeof getUserStorageKey === 'function' ? getUserStorageKey('checkoutItems') : null;
+    if (!checkoutKey) return { ok: false, reason: 'Sesi tidak valid. Silakan login kembali.' };
+    if (!writeArray(checkoutKey, items)) {
+      return { ok: false, reason: 'Checkout titipan tidak dapat disimpan karena penyimpanan browser penuh.' };
+    }
+
+    // Konteks menautkan checkout ini dengan titipannya (dibaca checkout.js).
+    var ctxKey = typeof getUserStorageKey === 'function' ? getUserStorageKey('titipanCheckout') : null;
+    if (ctxKey) {
+      var ctx = { titipanId: request.id, updatedAt: new Date().toISOString() };
+      if (typeof window.writeUserStorage === 'function') window.writeUserStorage(ctxKey, ctx);
+      else { try { localStorage.setItem(ctxKey, JSON.stringify(ctx)); } catch (error) { /* abaikan */ } }
+    }
+
+    // Smart Guide: tahap 'checkout' agar panduan mengarah ke checkout.html.
+    if (typeof simpanPesananBaru === 'function') {
+      simpanPesananBaru({ items: items, updatedAt: new Date().toISOString() });
+    }
+    return { ok: true, request: request, items: items, reason: '' };
+  }
+
+  // Tandai titipan sudah dichekout pelanggan (pesanan dikonfirmasi di checkout).
+  function tandaiSudahCheckout(requestId) {
+    return updateStatusBothCopies(requestId, 'sudah_checkout', 'Sudah dichekout pelanggan.');
+  }
+
+  // Batalkan titipan karena pelanggan menekan "Hapus Pesanan Ini" di checkout.
+  // Data TIDAK dihapus fisik: status 'dibatalkan' tersinkron ke salinan admin.
+  function batalkanTitipan(requestId) {
+    var ok = updateStatusBothCopies(requestId, 'dibatalkan', 'Dibatalkan pelanggan saat checkout.');
+    removeCheckoutContext();
+    return ok;
+  }
+
+  function updateStatusBothCopies(requestId, status, catatan) {
+    if (!requestId) return false;
+    var userKey = typeof getUserStorageKey === 'function' ? getUserStorageKey('titipan') : null;
+    if (!userKey) return false;
+    var changed = false;
+    var userList = readArray(userKey).map(function (entry) {
+      if (entry && String(entry.id) === String(requestId)) {
+        changed = true;
+        entry.status = status;
+        entry.statusUpdatedAt = new Date().toISOString();
+        if (catatan) entry.catatanStatus = catatan;
+      }
+      return entry;
+    });
+    if (!changed) return false;
+    if (!writeArray(userKey, userList)) return false;
+
+    // Sinkronkan salinan admin agar admin melihat status terbaru.
+    var user = activeUser() || {};
+    var adminKey = user.id ? 'dikyTitipanAdmin_' + user.id : null;
+    if (adminKey) {
+      var adminList = readArray(adminKey).map(function (entry) {
+        if (entry && String(entry.id) === String(requestId)) {
+          entry.status = status;
+          entry.statusUpdatedAt = new Date().toISOString();
+          if (catatan) entry.catatanStatus = catatan;
+        }
+        return entry;
+      });
+      writeArray(adminKey, adminList);
+    }
+    return true;
+  }
+
+  // Cari status pesanan (orders/riwayat) yang terkait sebuah titipan.
+  // Dipakai untuk aturan Riwayat Titipan: baru tampil setelah pesanan
+  // mencapai tab "Selesai" di orders.html.
+  function cariStatusPesananTitipan(requestId) {
+    if (!requestId) return null;
+    var keys = [];
+    ['orders', 'riwayatPesanan', 'pesananAktif'].forEach(function (type) {
+      var key = typeof getUserStorageKey === 'function' ? getUserStorageKey(type) : null;
+      if (key) keys.push(key);
+    });
+    for (var i = 0; i < keys.length; i += 1) {
+      var parsed = null;
+      try { parsed = JSON.parse(localStorage.getItem(keys[i]) || 'null'); } catch (error) { parsed = null; }
+      if (!parsed) continue;
+      var entries = Array.isArray(parsed) ? parsed : [parsed];
+      for (var j = 0; j < entries.length; j += 1) {
+        if (entries[j] && String(entries[j].titipanId) === String(requestId)) {
+          return String(entries[j].status || 'menunggu');
+        }
+      }
+    }
+    return null;
+  }
+
   // --- Arsip titipan -------------------------------------------------------
   function readArchive() {
     try {
@@ -360,7 +493,7 @@
   // --- Statistik ringkas ---------------------------------------------------
   function summarize(list) {
     var requests = Array.isArray(list) ? list : [];
-    var aktif = requests.filter(function (r) { return ['menunggu_dibeli', 'diproses', 'sebagian_habis', 'siap_diambil'].indexOf(String(r.status)) !== -1; });
+    var aktif = requests.filter(function (r) { return ['menunggu_dibeli', 'diproses', 'sebagian_habis', 'siap_checkout', 'sudah_checkout', 'siap_diambil'].indexOf(String(r.status)) !== -1; });
     var habis = 0;
     var ditagih = 0;
     requests.forEach(function (r) {
@@ -382,6 +515,8 @@
       case 'menunggu_dibeli': return 'Menunggu Dibeli di Pasar';
       case 'diproses': return 'Sedang Dibelikan';
       case 'sebagian_habis': return 'Ada Produk Habis di Pasar';
+      case 'siap_checkout': return 'Siap Checkout oleh Pelanggan';
+      case 'sudah_checkout': return 'Sudah Dichekout Pelanggan';
       case 'siap_diambil': return 'Siap Diambil';
       case 'selesai': return 'Selesai';
       case 'dibatalkan': return 'Dibatalkan';
@@ -439,6 +574,10 @@
     summarize: summarize,
     requestStatusLabel: requestStatusLabel,
     itemStatusLabel: itemStatusLabel,
-    pesanHabisDiPasar: pesanHabisDiPasar
+    pesanHabisDiPasar: pesanHabisDiPasar,
+    siapkanCheckoutTitipan: siapkanCheckoutTitipan,
+    tandaiSudahCheckout: tandaiSudahCheckout,
+    batalkanTitipan: batalkanTitipan,
+    cariStatusPesananTitipan: cariStatusPesananTitipan
   };
 })(window);
