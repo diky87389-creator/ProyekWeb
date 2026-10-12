@@ -56,6 +56,8 @@
       // setelah benar-benar dibeli di pasar dan difinalisasi oleh admin.
       'titipan': `dikyTitipan_${user.id}`,
       'titipanAdmin': `dikyTitipanAdmin_${user.id}`,
+      // Konteks menautkan proses checkout.html aktif dengan titipan asalnya (Titip Beli).
+      'titipanCheckout': `dikyTitipanCheckout_${user.id}`,
       'checkoutItems': `dikyCheckoutItems_${user.id}`,
       'checkoutSummary': `dikyCheckoutSummary_${user.id}`,
       'lastOrder': `dikyLastOrder_${user.id}`,
