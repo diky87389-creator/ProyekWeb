@@ -437,7 +437,7 @@
     } else if (isAktif && String(request.status) === 'sudah_checkout') {
       var info = document.createElement('div');
       info.className = 'notice-box notice-tagihan';
-      info.textContent = 'Pesanan titipanmu sudah kamu checkout. Pantau statusnya di halaman Pesanan (tab Dikemas / Dikirim / Selesai).';
+      info.textContent = 'Kamu sudah melanjutkan titipan ini ke checkout. Selesaikan pembayaran di halaman Checkout; jika kamu menekan "Hapus Pesanan Ini" di sana, titipan ini akan ditandai dibatalkan.';
       card.appendChild(info);
     }
 
