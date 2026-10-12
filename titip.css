@@ -637,3 +637,50 @@ input[type="search"]:focus {
   .titip-item { flex-wrap: wrap; }
   .button { width: 100%; }
 }
+
+
+/* ===== Tambahan alur checkout titipan ===== */
+/* Pilihan satuan pada kartu produk titipan (sinkron dari
+   "Pilihan satuan dan harga" yang dibuat admin di admin-products.html) */
+.unit-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.unit-option {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--primary-strong);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.unit-option.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.unit-option:hover {
+  transform: translateY(-1px);
+}
+
+/* Tombol Checkout Sekarang pada kartu titipan yang sudah difinalisasi */
+.titip-card-actions {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: start;
+  margin-top: 0.9rem;
+}
+
+.checkout-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
