@@ -28,12 +28,86 @@
   var aktifListEl = document.getElementById('titip-aktif-list');
   var refreshButton = document.getElementById('refresh-titipan');
   var toast = document.getElementById('toast');
+  var confirmDialog = document.getElementById('titip-confirm-dialog');
+  var confirmRead = document.getElementById('titip-confirm-read');
+  var confirmSubmit = document.getElementById('titip-confirm-submit');
+  var confirmCancel = document.getElementById('titip-confirm-cancel');
 
   var products = [];
   // Daftar titipan yang sedang disusun: { id, name, unit, qty, image }
   var draftItems = [];
 
   function escapeHTML(value) { return Helper.escapeHTML(value); }
+
+  function draftStorageKey() {
+    return typeof window.getUserStorageKey === 'function'
+      ? window.getUserStorageKey('titipanDraft')
+      : null;
+  }
+
+  function loadDraft() {
+    var key = draftStorageKey();
+    draftItems = [];
+    catatanField.value = '';
+    if (!key) return;
+
+    try {
+      var saved = JSON.parse(localStorage.getItem(key) || 'null');
+      if (!saved) return;
+      var items = Array.isArray(saved) ? saved : saved.items;
+      if (!Array.isArray(items)) {
+        console.warn('Draft titipan tersimpan tidak valid.');
+        return;
+      }
+
+      draftItems = items.filter(function (item) {
+        return item && typeof item === 'object' && item.id != null;
+      }).map(function (item) {
+        var qty = Number(item.qty);
+        return {
+          id: String(item.id),
+          name: String(item.name || 'Produk'),
+          unit: String(item.unit || ''),
+          qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+          image: typeof item.image === 'string' && item.image.indexOf('data:') !== 0 ? item.image : ''
+        };
+      });
+      if (!Array.isArray(saved)) catatanField.value = String(saved.catatan || '');
+    } catch (error) {
+      console.warn('Draft titipan tidak dapat dibaca.', error);
+      showToast('Draft titipan tersimpan tidak dapat dibaca.');
+    }
+  }
+
+  function persistDraft() {
+    var key = draftStorageKey();
+    if (!key) {
+      console.error('Draft titipan tidak dapat disimpan karena sesi pengguna tidak valid.');
+      showToast('Draft titipan tidak dapat disimpan. Periksa sesi login Anda.');
+      return false;
+    }
+
+    var draft = {
+      items: draftItems.map(function (item) {
+        return {
+          id: item.id,
+          name: item.name,
+          unit: item.unit,
+          qty: item.qty,
+          image: typeof item.image === 'string' && item.image.indexOf('data:') !== 0 ? item.image : ''
+        };
+      }),
+      catatan: catatanField.value || ''
+    };
+    var saved = typeof window.writeUserStorage === 'function'
+      ? window.writeUserStorage(key, draft)
+      : false;
+    if (!saved) {
+      console.error('Draft titipan gagal disimpan ke penyimpanan lokal.');
+      showToast('Draft titipan gagal disimpan. Ruang penyimpanan mungkin penuh.');
+    }
+    return saved;
+  }
 
   function showToast(message) {
     if (!toast) return;
@@ -84,68 +158,104 @@
 
     visible.forEach(function (product) {
       var habis = isHabis(product);
-      var selected = draftItems.some(function (item) { return String(item.id) === String(product.id); });
+      var draft = draftItems.find(function (item) { return String(item.id) === String(product.id); });
+      var selected = !!draft;
+      var activeUnitName = draft ? draft.unit : (defaultUnit(product) ? defaultUnit(product).name : '');
 
-      // Kartu produk berisi pilihan satuan yang SAMA dengan "Pilihan satuan
-      // dan harga" yang dibuat admin pada produk ini di admin-products.html.
-      // Harga tidak dipakai di sini; harga pasar ditentukan admin nantinya.
-      var chip = document.createElement('div');
-      chip.className = 'product-chip' + (selected ? ' is-selected' : '');
-      chip.setAttribute('role', 'button');
-      chip.setAttribute('tabindex', '0');
-      chip.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      // Kartu produk dengan model modern dan rapi mengikuti gaya keranjang.html
+      var card = document.createElement('article');
+      card.className = 'product-chip titip-product-card' + (selected ? ' is-selected' : '');
+      card.setAttribute('role', 'region');
+      card.setAttribute('aria-label', product.name);
+
+      // Baris atas: Gambar Thumbnail, Detail Produk, dan Tombol Pilih Titip
+      var topRow = document.createElement('div');
+      topRow.className = 'card-top-row';
 
       var img = document.createElement('img');
+      img.className = 'item-thumbnail titip-thumbnail';
       img.src = Helper.resolveProductImage(product);
       img.alt = product.name;
       img.loading = 'lazy';
 
-      var name = document.createElement('p');
-      name.className = 'chip-name';
-      name.textContent = product.name;
+      var topInfo = document.createElement('div');
+      topInfo.className = 'card-top-info';
 
-      var meta = document.createElement('p');
-      meta.className = 'chip-meta';
-      meta.textContent = product.units.length > 1
-        ? 'Pilih satuan sesuai pilihan admin. Harga menyusul dari pasar.'
-        : (defaultUnit(product) ? ('Perkiraan satuan: ' + defaultUnit(product).name) : 'Satuan belum diatur');
+      var nameEl = document.createElement('h3');
+      nameEl.className = 'chip-name';
+      nameEl.textContent = product.name;
 
-      var status = document.createElement('span');
-      status.className = 'chip-status ' + (habis ? 'status-habis' : 'status-tersedia');
-      status.textContent = habis ? 'Stok Habis (bisa dititip)' : 'Tersedia (bisa dititip)';
+      var statusSpan = document.createElement('span');
+      statusSpan.className = 'chip-status ' + (habis ? 'status-habis' : 'status-tersedia');
+      statusSpan.textContent = habis ? 'Stok Habis (bisa dititip)' : 'Tersedia (bisa dititip)';
 
-      chip.append(img, name, meta, status);
+      var pickBtn = document.createElement('button');
+      pickBtn.type = 'button';
+      pickBtn.className = 'button button-pick-titip ' + (selected ? 'button-primary is-picked' : 'button-light');
+      pickBtn.textContent = selected ? '✓ Dipilih' : '+ Titip';
+      pickBtn.setAttribute('aria-label', (selected ? 'Batalkan titip ' : 'Titipkan ') + product.name);
+      pickBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleProduct(product);
+      });
 
-      // Pilihan satuan: persis daftar satuan yang admin buat pada produk ini
-      // di admin-products.html (per kg, per buah / pcs, per bungkus, dsb.).
-      if (product.units.length > 1) {
-        var unitRow = document.createElement('div');
-        unitRow.className = 'unit-options';
-        var draft = draftItems.find(function (item) { return String(item.id) === String(product.id); });
-        product.units.forEach(function (unit) {
-          var unitButton = document.createElement('button');
-          unitButton.type = 'button';
-          var active = !!(selected && draft && draft.unit === unit.name);
-          unitButton.className = 'unit-option' + (active ? ' is-active' : '');
-          unitButton.textContent = unit.name;
-          unitButton.setAttribute('aria-pressed', active ? 'true' : 'false');
-          unitButton.addEventListener('click', function (event) {
-            event.stopPropagation();
+      topInfo.append(nameEl, statusSpan);
+      topRow.append(img, topInfo, pickBtn);
+      card.appendChild(topRow);
+
+      // Unit Selector: sinkron dari "Pilihan satuan dan harga" admin di admin-products.html
+      // dengan gaya Radio Button persis seperti di keranjang.html
+      if (product.units && product.units.length > 0) {
+        var unitSelector = document.createElement('div');
+        unitSelector.className = 'unit-selector';
+
+        var unitLabelHeader = document.createElement('div');
+        unitLabelHeader.className = 'unit-selector-label';
+        unitLabelHeader.textContent = 'Pilih satuan:';
+
+        var unitOptions = document.createElement('div');
+        unitOptions.className = 'unit-options';
+
+        product.units.forEach(function (unit, index) {
+          var unitOption = document.createElement('label');
+          unitOption.className = 'unit-option';
+
+          var radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.name = 'unit-titip-' + product.id;
+          radio.value = unit.name;
+          if (activeUnitName === unit.name) {
+            radio.checked = true;
+          }
+
+          radio.addEventListener('change', function (e) {
+            e.stopPropagation();
             pilihSatuan(product, unit.name);
           });
-          unitRow.append(unitButton);
+
+          var unitLabel = document.createElement('span');
+          unitLabel.className = 'unit-label';
+          unitLabel.textContent = unit.name;
+
+          var unitPrice = document.createElement('span');
+          unitPrice.className = 'unit-price';
+          unitPrice.textContent = 'Harga pasar';
+
+          unitOption.append(radio, unitLabel, unitPrice);
+          unitOptions.append(unitOption);
         });
-        chip.append(unitRow);
+
+        unitSelector.append(unitLabelHeader, unitOptions);
+        card.appendChild(unitSelector);
       }
 
-      chip.addEventListener('click', function () { toggleProduct(product); });
-      chip.addEventListener('keydown', function (event) {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          toggleProduct(product);
-        }
+      // Klik kartu di area netral juga bisa toggle
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('label.unit-option') || e.target.closest('button')) return;
+        toggleProduct(product);
       });
-      productList.appendChild(chip);
+
+      productList.appendChild(card);
     });
   }
 
@@ -155,15 +265,21 @@
     var draft = draftItems.find(function (item) { return String(item.id) === String(product.id); });
     if (draft) {
       draft.unit = unitName;
+      // KUNCI: sesuaikan kuantitas ke langkah & batas satuan BARU.
+      // ½ kg -> pindah ke per buah harus menjadi 1 buah (bukan ½ buah).
+      if (typeof window.Satuan !== 'undefined') {
+        draft.qty = window.Satuan.sesuaikan(draft.qty, unitName);
+      }
     } else {
       draftItems.push({
         id: String(product.id),
         name: product.name,
         unit: unitName,
-        qty: 1,
+        qty: typeof window.Satuan !== 'undefined' ? window.Satuan.minimum(unitName) : 1,
         image: product.image || ''
       });
     }
+    persistDraft();
     renderProducts();
     renderDraft();
   }
@@ -182,6 +298,7 @@
         image: product.image || ''
       });
     }
+    persistDraft();
     renderProducts();
     renderDraft();
   }
@@ -226,18 +343,42 @@
       minus.type = 'button';
       minus.textContent = '−';
       minus.setAttribute('aria-label', 'Kurangi jumlah ' + item.name);
+      if (typeof window.Satuan !== 'undefined' && !window.Satuan.bisaKurang(item.qty, item.unit)) {
+        minus.disabled = true;
+      }
       minus.addEventListener('click', function () { changeQty(item.id, -1); });
 
       var qty = document.createElement('span');
-      qty.textContent = item.qty;
+      qty.className = 'qty-value';
+      qty.textContent = typeof window.Satuan !== 'undefined'
+        ? window.Satuan.format(item.qty, item.unit)
+        : item.qty;
 
       var plus = document.createElement('button');
       plus.type = 'button';
       plus.textContent = '+';
       plus.setAttribute('aria-label', 'Tambah jumlah ' + item.name);
+      if (typeof window.Satuan !== 'undefined' && !window.Satuan.bisaTambah(item.qty, item.unit)) {
+        plus.disabled = true;
+      }
       plus.addEventListener('click', function () { changeQty(item.id, 1); });
 
       picker.append(minus, qty, plus);
+
+      // Chip cepat: daftar sama persis dengan keranjang agar konsisten.
+      var chipsRow = document.createElement('div');
+      chipsRow.className = 'qty-chips';
+      if (typeof window.Satuan !== 'undefined') {
+        window.Satuan.chips(item.unit).forEach(function (nilai) {
+          var chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'qty-chip';
+          if (Math.abs(Number(item.qty) - nilai) < 1e-9) chip.classList.add('is-active');
+          chip.textContent = window.Satuan.format(nilai, item.unit);
+          chip.addEventListener('click', function () { setQty(item.id, nilai); });
+          chipsRow.appendChild(chip);
+        });
+      }
 
       var remove = document.createElement('button');
       remove.type = 'button';
@@ -245,7 +386,7 @@
       remove.textContent = 'Buang';
       remove.addEventListener('click', function () { removeDraft(item.id); });
 
-      row.append(img, info, picker, remove);
+      row.append(img, info, picker, chipsRow, remove);
       titipItemsEl.appendChild(row);
     });
   }
@@ -253,18 +394,50 @@
   function changeQty(id, delta) {
     var item = draftItems.find(function (entry) { return String(entry.id) === String(id); });
     if (!item) return;
-    item.qty = Math.max(1, item.qty + delta);
+    // Langkah mengikuti satuan: kg/ons = 0,5 ; lainnya = 1.
+    item.qty = typeof window.Satuan !== 'undefined'
+      ? window.Satuan.geser(item.qty, delta, item.unit)
+      : Math.max(1, item.qty + delta);
+    persistDraft();
+    renderDraft();
+  }
+
+  // Set langsung dari chip cepat.
+  function setQty(id, nilai) {
+    var item = draftItems.find(function (entry) { return String(entry.id) === String(id); });
+    if (!item) return;
+    item.qty = typeof window.Satuan !== 'undefined'
+      ? window.Satuan.sesuaikan(nilai, item.unit)
+      : Math.max(1, Number(nilai) || 1);
+    persistDraft();
     renderDraft();
   }
 
   function removeDraft(id) {
     draftItems = draftItems.filter(function (entry) { return String(entry.id) !== String(id); });
+    persistDraft();
     renderProducts();
     renderDraft();
   }
 
   // --- Kirim titipan -------------------------------------------------------
   function kirimTitipan() {
+    if (!draftItems.length) {
+      showToast('Pilih minimal satu produk untuk dititipkan.');
+      return;
+    }
+
+    confirmRead.checked = false;
+    confirmSubmit.disabled = true;
+    if (typeof confirmDialog.showModal === 'function') {
+      confirmDialog.showModal();
+    } else {
+      confirmDialog.setAttribute('open', '');
+    }
+    confirmRead.focus();
+  }
+
+  function simpanTitipan() {
     if (!draftItems.length) {
       showToast('Pilih minimal satu produk untuk dititipkan.');
       return;
@@ -278,6 +451,7 @@
 
     draftItems = [];
     catatanField.value = '';
+    persistDraft();
     renderProducts();
     renderDraft();
     renderAktif();
@@ -286,13 +460,11 @@
   }
 
   // --- Titipan aktif & riwayat ----------------------------------------------
-  // ATURAN RIWAYAT: titipan baru muncul di "Riwayat Titipan" HANYA setelah
-  // pesanannya mencapai tab "Selesai" di orders.html (admin menekan tombol
-  // "Selesai" di admin-orders.html). Setelah finalisasi admin, titipan masih
-  // tampil di "Titipan Aktif" sambil menunggu checkout / sedang diproses.
+  // Riwayat menampilkan titipan yang pesanan checkout-nya selesai serta
+  // titipan yang seluruh produknya tidak tersedia di pasar.
   function renderAktif() {
     var requests = Helper.getTitipanUser().filter(function (request) {
-      return ['selesai', 'dibatalkan'].indexOf(String(request.status)) === -1;
+      return ['selesai', 'dibatalkan', 'habis_di_pasaran'].indexOf(String(request.status)) === -1;
     });
 
     aktifListEl.innerHTML = '';
@@ -310,13 +482,22 @@
     }
 
     requests.forEach(function (request) {
-      aktifListEl.appendChild(createRequestCard(request, true));
+      aktifListEl.appendChild(createRequestCard(requestWithLinkedOrderStatus(request), true));
     });
   }
 
+  function requestWithLinkedOrderStatus(request) {
+    if (Helper.cariStatusPesananTitipan(request.id) === 'dibatalkan' &&
+      String(request.status) !== 'dibatalkan') {
+      return Object.assign({}, request, { status: 'dibatalkan' });
+    }
+    return request;
+  }
+
   function renderRiwayat() {
-    var requests = Helper.getTitipanUser().filter(function (request) {
-      if (String(request.status) === 'dibatalkan') return false;
+    var requests = Helper.getTitipanUser().map(requestWithLinkedOrderStatus).filter(function (request) {
+      if (String(request.status) === 'dibatalkan') return true;
+      if (String(request.status) === 'habis_di_pasaran') return true;
       if (String(request.status) === 'selesai') return true;
       return Helper.cariStatusPesananTitipan(request.id) === 'selesai';
     });
@@ -329,14 +510,14 @@
       var h = document.createElement('h3');
       h.textContent = 'Belum ada riwayat titipan';
       var p = document.createElement('p');
-      p.textContent = 'Titipan masuk ke riwayat setelah pesanannya mencapai tab Selesai di halaman Pesanan.';
+      p.textContent = 'Titipan yang selesai atau tidak tersedia di pasar akan muncul di sini.';
       empty.append(h, p);
       titipListEl.appendChild(empty);
       return;
     }
 
     requests.forEach(function (request) {
-      titipListEl.appendChild(createRequestCard(request, false));
+      titipListEl.appendChild(createRequestCard(requestWithLinkedOrderStatus(request), false));
     });
   }
 
@@ -362,6 +543,40 @@
     window.setTimeout(function () { window.location.href = 'checkout.html'; }, 350);
   }
 
+  // Tombol Hapus Milik User (hanya diizinkan jika sudah berstatus 'selesai' di orders.html).
+  // Isolasi dua arah: hanya menghapus dari penyimpanan milik user (dikyTitipan_<userId>).
+  // Data admin di admin-titip.html dan arsip admin TIDAK TERPENGARUH.
+  function hapusTitipanPelanggan(requestId) {
+    var request = Helper.getTitipanUser().find(function (entry) { return String(entry.id) === String(requestId); });
+    if (!request) {
+      showToast('Data titipan tidak ditemukan.');
+      return;
+    }
+
+    var orderStatus = Helper.cariStatusPesananTitipan(request.id);
+    var isSelesai = String(request.status) === 'selesai' || orderStatus === 'selesai';
+    var isDibatalkan = String(request.status) === 'dibatalkan' || orderStatus === 'dibatalkan';
+    var isUnavailable = String(request.status) === 'habis_di_pasaran';
+
+    if (!isSelesai && !isDibatalkan && !isUnavailable) {
+      window.alert('Daftar titipan belum dapat dihapus karena belum diproses sampai ke tab "Selesai" di halaman Pesanan Anda.');
+      return;
+    }
+
+    var confirmMsg = 'Apakah Anda yakin ingin menghapus data daftar produk titipan ' + String(request.id).toUpperCase() + ' ini dari riwayat Anda?\n\n' +
+      'Data ini hanya dihapus dari tampilan Anda dan tidak mempengaruhi catatan admin.';
+    if (!window.confirm(confirmMsg)) return;
+
+    var ok = Helper.hapusTitipanUser(request.id);
+    if (ok) {
+      renderAktif();
+      renderRiwayat();
+      showToast('Daftar titipan berhasil dihapus dari riwayat Anda.');
+    } else {
+      showToast('Gagal menghapus titipan. Coba muat ulang halaman.');
+    }
+  }
+
   function createRequestCard(request, isAktif) {
     var card = document.createElement('article');
     card.className = 'titip-card';
@@ -382,7 +597,9 @@
 
     var status = document.createElement('span');
     status.className = 'status-pill status-' + request.status;
-    status.textContent = isAktif ? Helper.requestStatusLabel(request.status) : 'Selesai';
+    status.textContent = isAktif || ['habis_di_pasaran', 'dibatalkan'].indexOf(String(request.status)) !== -1
+      ? Helper.requestStatusLabel(request.status)
+      : 'Selesai';
     head.append(headLeft, status);
     card.appendChild(head);
 
@@ -401,6 +618,12 @@
       notice.className = 'notice-box notice-habis';
       notice.textContent = 'ℹ️ ' + habisMsg;
       card.appendChild(notice);
+    }
+    if (String(request.status) === 'habis_di_pasaran') {
+      var unavailableNotice = document.createElement('div');
+      unavailableNotice.className = 'notice-box notice-habis';
+      unavailableNotice.textContent = 'Titipan tidak dapat dilanjutkan ke checkout karena semua produk yang diminta habis di pasar. Tidak ada biaya yang ditagihkan.';
+      card.appendChild(unavailableNotice);
     }
 
     var total = Helper.computeDitagihkan(request.items);
@@ -439,6 +662,18 @@
       info.className = 'notice-box notice-tagihan';
       info.textContent = 'Kamu sudah melanjutkan titipan ini ke checkout. Selesaikan pembayaran di halaman Checkout; jika kamu menekan "Hapus Pesanan Ini" di sana, titipan ini akan ditandai dibatalkan.';
       card.appendChild(info);
+    } else if (!isAktif) {
+      // Pada Riwayat Titipan (pesanan sudah mencapai tab Selesai), sediakan tombol Hapus
+      var historyActions = document.createElement('div');
+      historyActions.className = 'titip-card-actions history-actions';
+      var deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'button button-danger-light';
+      deleteBtn.textContent = 'Hapus';
+      deleteBtn.title = 'Hapus riwayat titipan ini dari daftar Anda';
+      deleteBtn.addEventListener('click', function () { hapusTitipanPelanggan(request.id); });
+      historyActions.append(deleteBtn);
+      card.appendChild(historyActions);
     }
 
     return card;
@@ -494,6 +729,7 @@
     if (!requireLogin()) return;
 
     loadProducts();
+    loadDraft();
     renderInfoBanner();
     renderProducts();
     renderDraft();
@@ -501,11 +737,25 @@
     renderRiwayat();
 
     searchProduk.addEventListener('input', renderProducts);
+    catatanField.addEventListener('input', persistDraft);
     kirimButton.addEventListener('click', kirimTitipan);
+    confirmRead.addEventListener('change', function () {
+      confirmSubmit.disabled = !confirmRead.checked;
+    });
+    confirmSubmit.addEventListener('click', function () {
+      if (!confirmRead.checked) return;
+      confirmDialog.close();
+      simpanTitipan();
+    });
+    confirmCancel.addEventListener('click', function () {
+      confirmDialog.close();
+    });
     refreshButton.addEventListener('click', function () {
       loadProducts();
+      loadDraft();
       renderInfoBanner();
       renderProducts();
+      renderDraft();
       renderAktif();
       renderAktif();
       renderRiwayat();
@@ -516,7 +766,9 @@
       if (!event.key) return;
       if (event.key.indexOf('dikyTitipan') === 0 || event.key === 'dikyProducts') {
         loadProducts();
+        loadDraft();
         renderProducts();
+        renderDraft();
         renderAktif();
         renderRiwayat();
       }
@@ -527,9 +779,46 @@
   window.addEventListener('pageshow', function () {
     if (typeof isValidSession === 'function' && isValidSession()) {
       loadProducts();
+      loadDraft();
       renderInfoBanner();
       renderProducts();
+      renderDraft();
       renderRiwayat();
     }
   });
+})();
+
+// ============================================================
+// HIGHLIGHT PSIKOLOGIS TOMBOL "CHECKOUT SEKARANG" SETELAH DIPENTALKAN
+// ============================================================
+(function () {
+  function checkTitipHighlight() {
+    var highlightId = sessionStorage.getItem('highlightTitipCheckout');
+    if (!highlightId) return;
+
+    window.setTimeout(function () {
+      var allCards = document.querySelectorAll('.titip-card');
+      var targetBtn = null;
+      allCards.forEach(function (card) {
+        var btn = card.querySelector('.titip-card-actions button.button-primary');
+        if (btn) targetBtn = btn;
+      });
+
+      if (targetBtn) {
+        targetBtn.classList.add('checkout-btn-psychology-alert');
+        targetBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetBtn.focus();
+        if (typeof showToast === 'function') {
+          showToast('⚠️ Klik tombol "Checkout Sekarang" untuk memproses titipan Anda!');
+        }
+      }
+      sessionStorage.removeItem('highlightTitipCheckout');
+    }, 400);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkTitipHighlight);
+  } else {
+    checkTitipHighlight();
+  }
 })();

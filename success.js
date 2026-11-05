@@ -217,7 +217,8 @@ function renderLastOrder(order) {
 
     const meta = document.createElement('p');
     meta.className = 'summary-item-meta';
-    meta.textContent = `${item.quantity} x ${formatPrice(item.price)} | ${item.unit}`;
+    var qtyTextS = typeof Satuan !== 'undefined' ? Satuan.format(item.quantity, item.unit) : (item.quantity + '\u0020' + item.unit);
+    meta.textContent = qtyTextS + ' x ' + formatPrice(item.price);
 
     summaryInfo.append(title, meta);
 

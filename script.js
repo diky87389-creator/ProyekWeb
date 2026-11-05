@@ -156,7 +156,10 @@ function addToCart(productId) {
 
   const existingItem = cart.find((item) => item.cartItemId === cartItemId);
   if (existingItem) {
-    existingItem.quantity += 1;
+    // Naikkan sesuai langkah satuan (kg/ons = 0,5).
+    existingItem.quantity = typeof window.Satuan !== 'undefined'
+      ? window.Satuan.geser(existingItem.quantity, 1, existingItem.unit)
+      : existingItem.quantity + 1;
   } else {
     cart.push({
       cartItemId: cartItemId,
@@ -165,7 +168,9 @@ function addToCart(productId) {
       price: selectedUnit.price,
       unit: selectedUnit.name,
       image: product.image,
-      quantity: 1,
+      quantity: typeof window.Satuan !== 'undefined'
+        ? window.Satuan.minimum(selectedUnit.name)
+        : 1,
       unitIndex: defaultUnitIndex
     });
   }

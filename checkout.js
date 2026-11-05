@@ -233,7 +233,10 @@ function renderOrderSummary() {
     meta.className = 'summary-item-meta';
 
     const quantity = document.createElement('span');
-    quantity.textContent = `${item.quantity} x ${formatPrice(item.price)}`;
+    const qtyText = typeof window.Satuan !== 'undefined'
+      ? window.Satuan.formatAngka(item.quantity)
+      : item.quantity;
+    quantity.textContent = `${qtyText} x ${formatPrice(item.price)}`;
 
     const unit = document.createElement('span');
     unit.textContent = item.unit;
@@ -265,17 +268,70 @@ function getSelectedDeliveryMethod() {
 }
 
 function getShippingCost() {
-  return getSelectedDeliveryMethod() === 'Diantar ke Rumah' ? 10000 : 0;
+  // Ongkir dihitung dari JARAK (Warung -> lokasi pelanggan), bukan flat.
+  // Seluruh halaman lain (success, orders, hutang, titip, admin-*)
+  // membaca order.shippingCost sehingga otomatis ikut nilai ini.
+  if (getSelectedDeliveryMethod() !== 'Diantar ke Rumah') return 0;
+
+  if (typeof window.Ongkir === 'undefined') {
+    // Modul belum dimuat: pakai fallback agar checkout tetap berjalan.
+    return 10000;
+  }
+
+  var hasil = window.Ongkir.hitung({
+    metodePengiriman: getSelectedDeliveryMethod(),
+    user: (typeof getActiveUser === 'function' ? getActiveUser() : null)
+  });
+  return hasil.total;
+}
+
+/** Rincian ongkir untuk ditampilkan di ringkasan checkout. */
+function getShippingDetail() {
+  if (getSelectedDeliveryMethod() !== 'Diantar ke Rumah') {
+    return { total: 0, jarakTempuhKm: null, peringatan: null, adaLokasi: true };
+  }
+  if (typeof window.Ongkir === 'undefined') {
+    return { total: 10000, jarakTempuhKm: null, peringatan: null, adaLokasi: true };
+  }
+  return window.Ongkir.hitung({
+    metodePengiriman: getSelectedDeliveryMethod(),
+    user: (typeof getActiveUser === 'function' ? getActiveUser() : null)
+  });
 }
 
 function updateSummaryCosts() {
   const cart = getCart();
-  const subtotal = cart.reduce((sum, item) => sum + (toSafeNumber(item.price) * Math.floor(toSafeNumber(item.quantity))), 0);
-  const shippingCost = getShippingCost();
+  const subtotal = cart.reduce((sum, item) => sum + (toSafeNumber(item.price) * toSafeNumber(item.quantity)), 0);
+  const detail = getShippingDetail();
+  const shippingCost = detail.total;
 
   const shippingCostElement = document.getElementById('shipping-cost');
   if (shippingCostElement) {
     shippingCostElement.textContent = formatPrice(shippingCost);
+  }
+
+  // Tampilkan keterangan jarak di bawah baris ongkir.
+  const jarakElement = document.getElementById('shipping-distance');
+  if (jarakElement) {
+    if (detail.jarakTempuhKm != null) {
+      jarakElement.textContent = '📍 ' + (window.Ongkir ? window.Ongkir.formatJarak(detail.jarakTempuhKm) : '') + ' dari Warung Sayur Diky';
+      jarakElement.hidden = false;
+    } else {
+      jarakElement.textContent = '';
+      jarakElement.hidden = true;
+    }
+  }
+
+  // Peringatan: lokasi belum ada / melebihi radius.
+  const warnElement = document.getElementById('shipping-warning');
+  if (warnElement) {
+    if (detail.peringatan) {
+      warnElement.textContent = '⚠️ ' + detail.peringatan;
+      warnElement.hidden = false;
+    } else {
+      warnElement.textContent = '';
+      warnElement.hidden = true;
+    }
   }
 
   orderTotalElement.textContent = formatPrice(subtotal + shippingCost);
@@ -382,7 +438,7 @@ function buildOrderData() {
   const deliveryMethod = getSelectedDeliveryMethod();
   const paymentMethod = getSelectedPaymentMethod();
   const shippingCost = getShippingCost();
-  const subtotal = cart.reduce((sum, item) => sum + (toSafeNumber(item.price) * Math.floor(toSafeNumber(item.quantity))), 0);
+  const subtotal = cart.reduce((sum, item) => sum + (toSafeNumber(item.price) * toSafeNumber(item.quantity)), 0);
   const activeUser = typeof getCurrentRegisteredUser === 'function' ? getCurrentRegisteredUser() : (typeof window.getActiveUser === 'function' ? window.getActiveUser() : null);
   const userLatitude = Number.isFinite(Number(activeUser && activeUser.latitude)) ? Number(activeUser.latitude) : null;
   const userLongitude = Number.isFinite(Number(activeUser && activeUser.longitude)) ? Number(activeUser.longitude) : null;
@@ -411,6 +467,11 @@ function buildOrderData() {
     gender: userGender,
     birthDate: userBirthDate,
     createdAt: new Date().toISOString(),
+    // WAJIB ada: pesanan baru selalu masuk tab "Dikemas" di orders.html.
+    // Tanpa field ini, penjaga pesanan ganda di checkout.html tidak dapat
+    // mendeteksi pesanan yang masih berjalan (status kosong = diabaikan).
+    status: 'menunggu',
+    statusUpdatedAt: new Date().toISOString(),
     titipanId: titipanContext && titipanContext.titipanId ? String(titipanContext.titipanId) : null,
     cart,
     totalPrice: subtotal + shippingCost,
@@ -433,6 +494,20 @@ function buildOrderData() {
 }
 
 async function submitOrder() {
+  // Penjaga lapis kedua: tolak bila masih ada pesanan yang berjalan
+  // (success.html, tab Dikemas, atau tab Dikirim / Silahkan Untuk Diambil).
+  // Pesanan di tab Selesai TIDAK menghalangi.
+  const penghalang = cariPesananYangMenghalangi();
+  if (penghalang) {
+    terapkanPenjagaPesananAktif();
+    if (penghalang.source === 'success') {
+      alert('Anda masih memiliki pesanan aktif yang belum diselesaikan di halaman Sukses.\n\nBuka halaman Sukses dan tekan tombol "Lihat Riwayat Pesanan" agar pesanan tersebut masuk ke tab Dikemas terlebih dahulu. Setelah itu Anda dapat membuat pesanan baru.');
+    } else {
+      alert('Anda masih memiliki pesanan yang sedang berjalan di tab "' + penghalang.label + '".\n\nPesanan baru dapat dibuat setelah admin menyelesaikan pesanan tersebut sampai masuk ke tab Selesai di halaman Pesanan.');
+    }
+    return;
+  }
+
   if (!validateForm()) {
     alert('Silakan lengkapi semua data pengiriman dengan benar sebelum melanjutkan.');
     return;
@@ -711,6 +786,247 @@ function initializeCheckoutPage() {
   toggleDeliveryAddress();
   updateSummaryCosts();
   confirmButton.addEventListener('click', submitOrder);
+
+  // Cegah pesanan ganda di success.html
+  terapkanPenjagaPesananAktif();
+}
+
+/**
+ * ============================================================
+ * PENJAGA PESANAN AKTIF DI success.html
+ * ============================================================
+ * success.html hanya menampung SATU pesanan aktif (pesananAktif /
+ * lastOrder). Bila user meninggalkan success.html tanpa menekan
+ * "Lihat Riwayat Pesanan", pesanan pertamanya MASIH aktif di sana.
+ *
+ * Maka dari itu, sebelum pesanan baru boleh dikonfirmasi:
+ *   1) Deteksi apakah pesananAktif / lastOrder masih berisi pesanan
+ *      yang BELUM dipindahkan ke riwayat (belum masuk tab Dikemas).
+ *   2) Jika ada -> NONAKTIFKAN tombol "Konfirmasi Pesanan".
+ *   3) Tampilkan peringatan + tombol menuju success.html.
+ *   4) Jika sudah dipindahkan -> aktifkan kembali tombol, sembunyikan
+ *      peringatan.
+ * ============================================================
+ */
+function adaPesananAktifDiSuccess() {
+  try {
+    if (typeof getPesananAktif !== 'function') return null;
+    const pesanan = getPesananAktif();
+    if (!pesanan || typeof pesanan !== 'object') return null;
+    if (pesanan.dihapusUser === true) return null;
+
+    // Pesanan yang dibatalkan tidak menghalangi.
+    const status = String(pesanan.status || '').trim().toLowerCase();
+    if (status === 'dibatalkan' || status === 'cancelled' || status === 'batal') return null;
+
+    return pesanan;
+  } catch (error) {
+    console.warn('Gagal memeriksa pesanan aktif:', error);
+    return null;
+  }
+}
+
+/* ============================================================
+   STATUS PESANAN YANG MASIH DIPROSES
+   ------------------------------------------------------------
+   Pesanan dianggap MASIH BERJALAN (dan memblokir pesanan baru)
+   bila statusnya BUKAN salah satu di bawah ini:
+     selesai, lunas, dibatalkan, completed, cancelled, batal
+
+   Contoh:
+     'menunggu' / 'dikemas' / 'diproses' -> tab Dikemas  -> BLOKIR
+     'dikirim'                          -> tab Dikirim  -> BLOKIR
+     'siap_diambil'                     -> tab Silahkan Untuk Diambil -> BLOKIR
+     'selesai'                          -> tab Selesai  -> IZINKAN
+
+   Tab tujuan (targetTab) dipakai orders.js untuk langsung membuka
+   tab yang benar lewat sessionStorage['dikySmartGuideOrderTab'].
+   ============================================================ */
+const STATUS_SELESAI = ['selesai', 'lunas', 'dibatalkan', 'dibatalkan oleh pelanggan',
+  'completed', 'cancelled', 'dibatalkan_admin', 'batal'];
+
+function petakanTabPesanan(order) {
+  const status = String((order && order.status) || 'menunggu').trim().toLowerCase();
+  if (status === 'dikirim') return { tab: 'dikirim', label: 'Dikirim' };
+  if (status === 'siap_diambil') return { tab: 'siap_diambil', label: 'Silahkan Untuk Diambil' };
+  return { tab: 'dikemas', label: 'Dikemas' };
+}
+
+/**
+ * Cari pesanan milik user yang masih berjalan di orders.html
+ * (tab Dikemas / Dikirim / Silahkan Untuk Diambil).
+ * Pesanan di tab Selesai TIDAK dianggap menghalangi.
+ */
+/** Ambil daftar pesanan dari kunci localStorage tertentu (selalu array). */
+function ambilDaftarPesanan(kunci) {
+  try {
+    const raw = localStorage.getItem(kunci);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) return data.filter(function (o) { return o && typeof o === 'object'; });
+    if (data && typeof data === 'object') return [data];
+    return [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function adaPesananBerjalanDiOrders() {
+  try {
+    if (typeof getUserStorageKey !== 'function' && typeof getActiveUser !== 'function') return null;
+
+    // User aktif diperlukan untuk memastikan hanya pesanan MILIKNYA yang diperiksa.
+    const user = typeof getActiveUser === 'function' ? getActiveUser() : null;
+    const userId = user && user.id ? String(user.id) : '';
+    if (!userId) return null;
+
+    // Kumpulkan pesanan dari KEDUA sumber.
+    // dickyOrders_ (arsip admin) dianggap SUMBER KEBENARAN karena admin
+    // yang mengubah status (Dikirim / Selesai). Bila status di kedua
+    // sumber berbeda, pakai yang lebih maju.
+    const dariRiwayat = ambilDaftarPesanan('riwayatPesanan_' + userId);
+    const dariAdmin = ambilDaftarPesanan('dikyOrders_' + userId);
+
+    const milikUser = (o) => {
+      if (!o || typeof o !== 'object') return false;
+      if (o.dihapusUser === true) return false;
+      const pemilik = o.userId ? String(o.userId) : '';
+      return !pemilik || pemilik === userId;
+    };
+
+    // Gabungkan per ID: status admin mengalahkan status riwayat.
+    const gabungan = {};
+
+    dariRiwayat.filter(milikUser).forEach(function (o) {
+      gabungan[String(o.id)] = Object.assign({}, o);
+    });
+
+    dariAdmin.filter(milikUser).forEach(function (o) {
+      const id = String(o.id);
+      const lama = gabungan[id];
+      if (!lama) {
+        gabungan[id] = Object.assign({}, o);
+        return;
+      }
+      const stAdmin = String(o.status || '').toLowerCase();
+      const stLama = String(lama.status || '').toLowerCase();
+      // Jika status admin lebih maju / berbeda, pakai status admin.
+      if (stAdmin && stAdmin !== stLama) {
+        lama.status = o.status;
+        lama.shippedAt = o.shippedAt || lama.shippedAt;
+        lama.completedAt = o.completedAt || lama.completedAt;
+      }
+    });
+
+    const aktif = Object.keys(gabungan).map(function (id) { return gabungan[id]; }).find(function (o) {
+      const st = String(o.status || '').trim().toLowerCase();
+
+      // Pesanan tanpa status dianggap MASIH BERJALAN (tab Dikemas).
+      // Ini penting untuk pesanan lama yang dibuat sebelum field status
+      // ditambahkan. Lebih aman menolak daripada membiarkan pesanan ganda.
+      if (!st) return true;
+
+      return STATUS_SELESAI.indexOf(st) === -1;
+    });
+
+    return aktif || null;
+  } catch (error) {
+    console.warn('Gagal memeriksa pesanan berjalan di orders.html:', error);
+    return null;
+  }
+}
+
+/**
+ * Gabungkan seluruh sumber penjagaan:
+ *   source : 'success' | 'orders'
+ *   order  : objek pesanan yang menghalangi
+ *   tab    : 'dikemas' | 'dikirim' | 'siap_diambil'
+ *   tujuan : URL halaman yang harus dibuka user
+ */
+function cariPesananYangMenghalangi() {
+  const pesananSuccess = adaPesananAktifDiSuccess();
+  if (pesananSuccess) {
+    return { source: 'success', order: pesananSuccess, tab: null, label: 'Sukses', tujuan: 'success.html' };
+  }
+
+  const pesananOrders = adaPesananBerjalanDiOrders();
+  if (pesananOrders) {
+    const info = petakanTabPesanan(pesananOrders);
+    return {
+      source: 'orders',
+      order: pesananOrders,
+      tab: info.tab,
+      label: info.label,
+      tujuan: 'orders.html'
+    };
+  }
+
+  return null;
+}
+
+function terapkanPenjagaPesananAktif() {
+  const panel = document.getElementById('pending-order-warning');
+  const tombol = document.getElementById('pending-order-link');
+  const judul = document.getElementById('pending-order-title');
+  const teks = document.getElementById('pending-order-text');
+  if (!panel || !confirmButton) return;
+
+  const penghalang = cariPesananYangMenghalangi();
+
+  if (penghalang) {
+    confirmButton.disabled = true;
+    confirmButton.setAttribute('aria-disabled', 'true');
+    confirmButton.classList.add('is-blocked');
+    panel.hidden = false;
+
+    if (penghalang.source === 'success') {
+      if (teks) {
+        teks.innerHTML = 'Pesanan Anda sebelumnya masih aktif di halaman <strong>Sukses</strong>. ' +
+          'Tekan tombol <strong>"Lihat Riwayat Pesanan"</strong> agar pesanan masuk ke tab <strong>Dikemas</strong> di halaman Pesanan. ' +
+          'Setelah itu Anda dapat melanjutkan pesanan baru.';
+      }
+      if (tombol) tombol.textContent = 'Lihat Pesanan Sebelumnya \u2192';
+    } else {
+      if (teks) {
+        teks.innerHTML = 'Pesanan Anda sebelumnya masih berjalan di tab <strong>' + penghalang.label + '</strong>. ' +
+          'Pesanan baru dapat dibuat setelah admin menyelesaikan pesanan tersebut ' +
+          '(sampai masuk ke tab <strong>Selesai</strong>).';
+      }
+      if (tombol) tombol.textContent = 'Lihat Pesanan di Tab ' + penghalang.label + ' \u2192';
+    }
+
+    // Simpan tujuan di dataset agar listener lama tidak memakai tujuan usang.
+    tombol.dataset.tujuan = penghalang.tujuan;
+    tombol.dataset.tab = penghalang.tab || '';
+
+    if (!tombol.dataset.terpasang) {
+      tombol.dataset.terpasang = '1';
+      tombol.addEventListener('click', function () {
+        const tujuan = tombol.dataset.tujuan || 'success.html';
+        const tab = tombol.dataset.tab;
+
+        if (window.NavigationGuard && typeof window.NavigationGuard.grantAccess === 'function') {
+          window.NavigationGuard.grantAccess(tujuan, 'checkout_pending_order_redirect');
+        }
+        if (tab) {
+          try { sessionStorage.setItem('dikySmartGuideOrderTab', tab); } catch (e) { }
+        }
+        window.location.href = tujuan;
+      });
+    }
+
+    if (judul) {
+      judul.textContent = penghalang.source === 'success'
+        ? 'Masih ada pesanan yang belum diselesaikan'
+        : 'Masih ada pesanan yang sedang berjalan';
+    }
+  } else {
+    // Semua pesanan sudah Selesai -> izinkan konfirmasi.
+    confirmButton.disabled = false;
+    confirmButton.removeAttribute('aria-disabled');
+    confirmButton.classList.remove('is-blocked');
+    panel.hidden = true;
+  }
 }
 
 function forceCleanReRender() {
@@ -728,6 +1044,9 @@ window.addEventListener('pageshow', function() {
     }
     forceCleanReRender();
     updateCancelCheckoutVisibility();
+    // Perbarui penjaga saat kembali ke halaman ini (mis. via tombol Back
+    // dari success.html setelah Riwayat Pesanan ditekan).
+    terapkanPenjagaPesananAktif();
   }
 });
 
@@ -771,16 +1090,20 @@ function hapusPesananCheckout() {
     if (window.TitipHelper && typeof window.TitipHelper.batalkanTitipan === 'function') {
       window.TitipHelper.batalkanTitipan(titipanContext.titipanId);
     }
-    ['checkoutItems', 'checkoutSummary', 'checkoutForm', 'pesananBaru', 'titipanCheckout'].forEach((type) => {
+    ['checkoutItems', 'checkoutSummary', 'checkoutForm', 'pesananBaru', 'titipanCheckout', 'pesananAktif', 'lastOrder'].forEach((type) => {
       const key = getUserStorageKey(type);
       if (key) localStorage.removeItem(key);
     });
     if (typeof clearUserLastPosition === 'function') clearUserLastPosition();
   } else if (typeof window.hapusPesananDariCheckout === 'function') {
     window.hapusPesananDariCheckout();
+    ['pesananAktif', 'lastOrder'].forEach((type) => {
+      const key = getUserStorageKey(type);
+      if (key) localStorage.removeItem(key);
+    });
   } else {
     // Fallback bila helper belum termuat: bersihkan data checkout milik user aktif.
-    ['checkoutItems', 'checkoutSummary', 'checkoutForm', 'pesananBaru', 'cart'].forEach((type) => {
+    ['checkoutItems', 'checkoutSummary', 'checkoutForm', 'pesananBaru', 'cart', 'pesananAktif', 'lastOrder'].forEach((type) => {
       const key = getUserStorageKey(type);
       if (key) localStorage.removeItem(key);
     });
@@ -818,3 +1141,30 @@ window.addEventListener('DOMContentLoaded', function () {
   }
   updateCancelCheckoutVisibility();
 });
+
+// ============================================================
+// HIGHLIGHT PSIKOLOGIS TOMBOL "HAPUS PESANAN INI" SETELAH DIPENTALKAN
+// ============================================================
+(function () {
+  function checkCancelHighlight() {
+    var shouldHighlight = sessionStorage.getItem('highlightBatalCheckout');
+    if (!shouldHighlight) return;
+
+    window.setTimeout(function () {
+      var btn = document.getElementById('cancel-checkout-button');
+      if (btn) {
+        btn.classList.add('cancel-btn-psychology-alert');
+        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        btn.focus();
+        window.alert('⚠️ Perhatian: Jika Anda ingin membatalkan titipan ini sebelum melakukan Logout Bersih Total, silakan klik tombol "Hapus Pesanan Ini" yang berkedip merah di bawah.');
+      }
+      sessionStorage.removeItem('highlightBatalCheckout');
+    }, 450);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkCancelHighlight);
+  } else {
+    checkCancelHighlight();
+  }
+})();

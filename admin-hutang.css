@@ -441,3 +441,804 @@ dialog::backdrop {
 .action.archive-action:hover { background: #e2edfb; }
 .action.danger { color: #b42318; border-color: #f3c2bb; background: #fff5f3; }
 .action.danger:hover { background: #fde8e4; }
+
+/* ============================================================
+   BUKU KASBON — tata letak buku hutang fisik
+   ============================================================ */
+:root {
+  --paper: #fffdf5;
+  --paper-line: #e3e8df;
+  --ink: #2b3a33;
+  --rule: #cfe0d6;
+  --stamp: #c0392b;
+  --amber: #b7791f;
+  --amber-bg: #fdf6e3;
+  --blue: #1d4e89;
+}
+
+/* Tombol pada judul halaman */
+.heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+/* ---------- Toolbar buku ---------- */
+#book-toolbar {
+  flex-wrap: wrap;
+}
+
+#book-toolbar label {
+  width: auto;
+  flex: 1 1 160px;
+}
+
+/* ---------- Indeks A–Z ---------- */
+.az-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  padding: .75rem;
+  margin-bottom: .75rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: .5rem;
+  z-index: 5;
+}
+
+.az-letter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .15rem;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 .35rem;
+  color: var(--primary-dark);
+  background: #f3faf5;
+  border: 1px solid #cfe4d5;
+  border-radius: .5rem;
+  font-weight: 800;
+  font-size: .82rem;
+  transition: background .15s, color .15s, transform .12s;
+}
+
+.az-letter small {
+  font-size: .62rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.az-letter:hover:not(.is-empty) {
+  background: #e2f4e7;
+  transform: translateY(-1px);
+}
+
+.az-letter.is-active {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.az-letter.is-active small {
+  color: #d9f1df;
+}
+
+.az-letter.is-empty {
+  color: #b9c9c0;
+  background: #f7fbf8;
+  border-style: dashed;
+  cursor: default;
+  opacity: .65;
+}
+
+.az-letter.az-all {
+  padding: 0 .6rem;
+  background: #eef7f0;
+  border-color: #b9dcc2;
+}
+
+/* ---------- Daftar pelanggan (indeks buku) ---------- */
+.book-list {
+  gap: .5rem;
+}
+
+.letter-divider {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  margin: 1rem 0 .25rem;
+}
+
+.letter-divider span {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: .4rem;
+  color: #fff;
+  background: var(--primary-dark);
+  font-weight: 900;
+  font-size: .9rem;
+}
+
+.letter-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--rule), transparent);
+}
+
+.customer-row {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  padding: .85rem 1rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--primary);
+  border-radius: .75rem;
+  box-shadow: 0 4px 14px rgba(27, 91, 51, .05);
+  cursor: pointer;
+  transition: transform .12s, box-shadow .15s, border-color .15s;
+}
+
+.customer-row:hover,
+.customer-row:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(27, 91, 51, .11);
+  border-color: #b9dcc2;
+}
+
+.customer-row.has-unpaid {
+  border-left-color: var(--primary);
+}
+
+.customer-row.has-overdue {
+  border-left-color: var(--stamp);
+  background: linear-gradient(90deg, #fff6f4, #fff 40%);
+}
+
+.customer-row.all-paid {
+  border-left-color: #8fb9a0;
+  opacity: .92;
+}
+
+.cr-left {
+  flex: 0 0 auto;
+}
+
+.cr-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cr-name {
+  margin: 0 0 .2rem;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.cr-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.cr-right {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.cr-amount {
+  margin: 0;
+  font-weight: 900;
+  font-size: 1.02rem;
+  color: var(--primary-dark);
+}
+
+.cr-arrow {
+  color: #9fbfae;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+/* ---------- Badge ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .12rem .45rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.badge-unpaid {
+  color: #8a5a00;
+  background: #fdf1d4;
+  border: 1px solid #f0d9a4;
+}
+
+.badge-paid {
+  color: #1b6b3f;
+  background: #e3f6e8;
+  border: 1px solid #b6e3c3;
+}
+
+.badge-overdue {
+  color: #fff;
+  background: var(--stamp);
+  border: 1px solid var(--stamp);
+}
+
+.badge-priority {
+  color: #7a4a00;
+  background: #fff2cc;
+  border: 1px solid #eccb7a;
+}
+
+/* ---------- Lembar pelanggan ---------- */
+.customer-sheet {
+  margin-bottom: 1rem;
+}
+
+.sheet-toolbar {
+  display: flex;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+.sheet-paper {
+  position: relative;
+  padding: 1.5rem 1.5rem 1rem 1.9rem;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0, transparent 27px, var(--paper-line) 27px, var(--paper-line) 28px),
+    var(--paper);
+  border: 1px solid #d9e3d6;
+  border-radius: .6rem;
+  box-shadow: 0 14px 38px rgba(27, 91, 51, .12);
+}
+
+/* Garis margin kiri seperti buku folio */
+.sheet-paper::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 1.15rem;
+  width: 2px;
+  background: #e8b3ab;
+  opacity: .75;
+}
+
+.sheet-head {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--primary);
+}
+
+.sheet-id {
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet-id h2 {
+  margin: .1rem 0 .25rem;
+  font-size: 1.35rem;
+  color: var(--ink);
+}
+
+.sheet-sub {
+  margin: 0 0 .15rem;
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.sheet-summary {
+  display: grid;
+  gap: .15rem;
+  min-width: 190px;
+  padding: .6rem .75rem;
+  background: rgba(255, 255, 255, .7);
+  border: 1px dashed #bdd7c6;
+  border-radius: .5rem;
+}
+
+.sheet-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  font-size: .78rem;
+}
+
+.sheet-summary span {
+  color: var(--muted);
+}
+
+.sheet-summary strong.ok {
+  color: #1b6b3f;
+}
+
+.sheet-summary strong.due {
+  color: var(--stamp);
+}
+
+.sheet-paper .customer-avatar {
+  width: 54px;
+  height: 54px;
+  font-size: 1rem;
+}
+
+/* ---------- Tabel buku (ledger) ---------- */
+.ledger-wrap {
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .82rem;
+  background: transparent;
+}
+
+.ledger thead th {
+  padding: .5rem .45rem;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-align: left;
+  text-transform: uppercase;
+  border-bottom: 1.5px solid var(--primary);
+  white-space: nowrap;
+}
+
+.ledger td {
+  padding: .6rem .45rem;
+  vertical-align: top;
+  border-bottom: 1px dashed #cbdccf;
+}
+
+.ledger-row.is-paid {
+  background: rgba(227, 246, 232, .35);
+}
+
+.ledger-row.is-overdue {
+  background: rgba(255, 235, 231, .45);
+}
+
+.col-no {
+  width: 2.2rem;
+  color: var(--muted);
+  text-align: center;
+  font-weight: 700;
+}
+
+.col-date {
+  width: 92px;
+}
+
+.col-due {
+  width: 110px;
+  font-size: .75rem;
+  color: var(--muted);
+}
+
+.col-total {
+  width: 110px;
+  text-align: right;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.col-status {
+  width: 74px;
+  text-align: center;
+}
+
+.col-actions {
+  width: 210px;
+}
+
+.col-actions .action {
+  min-height: 30px;
+  padding: .25rem .45rem;
+  margin: .12rem;
+  font-size: .7rem;
+  border-radius: .4rem;
+}
+
+.ledger-title {
+  margin: 0 0 .15rem;
+  font-weight: 700;
+}
+
+.ledger-order {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: .74rem;
+}
+
+.ledger-items {
+  margin: 0 0 .15rem;
+  color: #4a6a56;
+  font-size: .76rem;
+}
+
+.ledger-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.ledger-note {
+  margin: .25rem 0 0;
+  padding: .25rem .45rem;
+  color: #7a4a00;
+  background: #fff6dc;
+  border-left: 3px solid #e8c263;
+  border-radius: .25rem;
+  font-size: .74rem;
+}
+
+.ledger-foot-label {
+  padding-top: .7rem;
+  text-align: right;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* ---------- Blok kalender tanggal ---------- */
+.date-block {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  justify-content: center;
+  width: 78px;
+  padding: .25rem .3rem;
+  background: #fff;
+  border: 1px solid #cfe0d6;
+  border-radius: .4rem;
+  box-shadow: inset 0 0 0 2px #f7fbf8;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.date-block .db-day {
+  grid-column: 1 / -1;
+  color: var(--primary-dark);
+  font-size: .58rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.date-block .db-date {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.date-block .db-month {
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.date-block .db-year {
+  color: var(--muted);
+  font-size: .62rem;
+}
+
+/* ---------- Stempel LUNAS ---------- */
+.stamp-paid {
+  display: block;
+  margin: .3rem auto 0;
+  padding: .1rem .35rem;
+  color: var(--stamp);
+  border: 2px solid var(--stamp);
+  border-radius: .25rem;
+  font-size: .6rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  opacity: .85;
+  transform: rotate(-8deg);
+  width: fit-content;
+}
+
+/* ---------- Kaki lembar ---------- */
+.sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  padding-top: .6rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: .7rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* ---------- Tombol aksi prioritas ---------- */
+.action-priority.is-on {
+  color: #7a4a00;
+  background: #fff2cc;
+  border-color: #eccb7a;
+}
+
+.action-toggle {
+  white-space: nowrap;
+}
+
+/* ---------- Kalender ringkasan ---------- */
+.calendar-panel {
+  margin-top: 1.5rem;
+  padding: 1.1rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow);
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+
+.calendar-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.cal-nav {
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+  background: #f3faf5;
+  border: 1px solid #cfe4d5;
+  border-radius: .6rem;
+}
+
+.cal-nav:hover {
+  background: #e2f4e7;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: .6rem;
+  color: var(--muted);
+  font-size: .74rem;
+}
+
+.calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.dot {
+  display: inline-block;
+  width: .55rem;
+  height: .55rem;
+  border-radius: 50%;
+}
+
+.dot-unpaid {
+  background: #e0a11c;
+}
+
+.dot-paid {
+  background: #2e9e5b;
+}
+
+.dot-overdue {
+  background: var(--stamp);
+}
+
+.calendar-weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: .35rem;
+}
+
+.calendar-weekdays {
+  margin-bottom: .35rem;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 62px;
+  padding: .3rem .2rem;
+  background: #fbfdfb;
+  border: 1px solid #e4efe7;
+  border-radius: .5rem;
+  font: inherit;
+  color: var(--ink);
+  cursor: default;
+}
+
+.cal-cell.is-blank {
+  background: transparent;
+  border: 0;
+}
+
+.cal-cell.has-data {
+  cursor: pointer;
+  background: #fff;
+  border-color: #cfe0d6;
+  box-shadow: 0 2px 8px rgba(27, 91, 51, .06);
+}
+
+.cal-cell.has-data:hover {
+  background: #f2fbf4;
+  border-color: var(--primary);
+}
+
+.cal-cell.is-today {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.cal-day-number {
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.cal-total {
+  color: var(--muted);
+  font-size: .58rem;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.cal-dots {
+  display: flex;
+  gap: .15rem;
+  margin-top: auto;
+}
+
+.cal-dots .dot {
+  width: .4rem;
+  height: .4rem;
+}
+
+.day-title {
+  margin: 0 0 .7rem;
+  font-size: 1.05rem;
+}
+
+.day-entry {
+  padding: .6rem 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.day-entry:last-child {
+  border-bottom: 0;
+}
+
+.day-entry p {
+  margin: 0 0 .15rem;
+}
+
+/* ---------- Dialog catatan ---------- */
+.note-form {
+  padding: 1.25rem;
+  display: grid;
+  gap: .75rem;
+}
+
+.note-form textarea {
+  width: 100%;
+  padding: .6rem .75rem;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid #c9e1d0;
+  border-radius: .65rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.note-form textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px #d9f1df;
+  outline: none;
+}
+
+.note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .5rem;
+}
+
+/* ---------- Cetak ---------- */
+@media print {
+  .topbar,
+  .page-heading,
+  .stats-grid,
+  .toolbar,
+  .az-index,
+  .calendar-panel,
+  .sheet-toolbar,
+  .col-actions,
+  #archive-button,
+  #print-button,
+  #refresh-button,
+  .summary {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .sheet-paper {
+    box-shadow: none;
+    border: 0;
+  }
+
+  .ledger td {
+    border-bottom: 1px solid #ccc;
+  }
+}
+
+@media (max-width: 700px) {
+  .customer-row {
+    flex-wrap: wrap;
+  }
+
+  .cr-right {
+    width: 100%;
+    text-align: left;
+    padding-left: 3.2rem;
+  }
+
+  .sheet-head {
+    flex-direction: column;
+  }
+
+  .sheet-summary {
+    width: 100%;
+  }
+
+  .sheet-paper {
+    padding: 1rem 1rem .8rem 1.4rem;
+  }
+
+  .cal-cell {
+    min-height: 52px;
+  }
+
+  .cal-total {
+    display: none;
+  }
+}

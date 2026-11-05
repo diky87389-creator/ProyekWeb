@@ -9,6 +9,12 @@ const notFoundPage = path.join(rootDir, '404.html');
 
 app.use(express.static(rootDir, { extensions: ['html'] }));
 
+// ============================================================
+// API PEMBAYARAN (Midtrans) — Server Key hanya di server
+// ============================================================
+const paymentApi = require('./payment-api');
+app.use('/api', express.json({ limit: '256kb' }), paymentApi);
+
 app.use((req, res, next) => {
   const pathname = req.path;
 

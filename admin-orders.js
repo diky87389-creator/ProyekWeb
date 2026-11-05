@@ -25,7 +25,7 @@
   function resolveIdentity(order) {
     var customer = order && order.customer && typeof order.customer === 'object' ? order.customer : {};
     var storageKey = order && order.__storageKey ? String(order.__storageKey) : '';
-    var userId = storageKey.indexOf('dikyOrders_') === 0 ? storageKey.slice(11) : '';
+    var userId = storageKey.indexOf('dikyOrders_') === 0 ? storageKey.slice(11) : String(order && (order.userId || order.__ownerId) || '');
     var identifiers = [order && order.userId, customer.userId, order && order.email, order && order.emailAddress, customer.email, customer.emailAddress, order && order.phone, order && order.phoneNumber, customer.phone, customer.phoneNumber].filter(Boolean).map(String);
     try {
       var users = JSON.parse(localStorage.getItem('dikyRegisteredUsers') || '[]');
@@ -78,6 +78,11 @@
         var cleanOrders = grouped[storageKey].map(cleanOrder);
         localStorage.setItem(storageKey, JSON.stringify(cleanOrders));
       });
+      // Sinkronkan status ke riwayat milik user agar orders.html DAN
+      // penjaga checkout.html melihat status terbaru (Dikemas/Dikirim/Selesai).
+      // Tanpa ini, admin menekan "Selesai" tetapi riwayat user tetap
+      // "menunggu", sehingga checkout terus menolak pesanan baru.
+      sinkronStatusKeRiwayatUser();
       return true;
     } catch (error) {
       storageKeys.forEach(function (storageKey) {
@@ -91,6 +96,72 @@
       return false;
     }
   }
+  /**
+   * ============================================================
+   * SINKRON STATUS ADMIN -> RIWAYAT MILIK USER
+   * ============================================================
+   * Panel admin menyimpan pesanan di dikyOrders_<userId>.
+   * orders.html & embed/penjaga checkout.html membaca
+   * riwayatPesanan_<userId>. Keduanya harus selalu sama.
+   *
+   * Hanya field status (dan waktu terkait) yang disinkronkan.
+   * Data lain milik user tidak diubah.
+   * ============================================================
+   */
+  function sinkronStatusKeRiwayatUser() {
+    try {
+      // Kumpulkan status terbaru per ownerId -> orderId
+      var perUser = {};
+
+      orders.forEach(function (order) {
+        if (!order || !order.id) return;
+        var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : '');
+        if (!ownerId) return;
+        var st = validStatus(order.status);
+        (perUser[ownerId] = perUser[ownerId] || {})[String(order.id)] = {
+          status: st,
+          updatedAt: order.updatedAt || order.statusUpdatedAt || null,
+          shippedAt: order.shippedAt || null,
+          completedAt: order.completedAt || null
+        };
+      });
+
+      Object.keys(perUser).forEach(function (ownerId) {
+        var historyKey = 'riwayatPesanan_' + ownerId;
+        var raw;
+        try { raw = localStorage.getItem(historyKey); } catch (e) { return; }
+        if (!raw) return;
+
+        var list;
+        try { list = JSON.parse(raw); } catch (e) { return; }
+        if (!Array.isArray(list)) return;
+
+        var map = perUser[ownerId];
+        var changed = false;
+
+        list.forEach(function (entry) {
+          if (!entry || !entry.id) return;
+          var info = map[String(entry.id)];
+          if (!info) return;
+
+          if (String(entry.status || '').toLowerCase() !== String(info.status).toLowerCase()) {
+            entry.status = info.status;
+            changed = true;
+          }
+          if (info.shippedAt && entry.shippedAt !== info.shippedAt) { entry.shippedAt = info.shippedAt; changed = true; }
+          if (info.completedAt && entry.completedAt !== info.completedAt) { entry.completedAt = info.completedAt; changed = true; }
+          if (info.updatedAt) { entry.statusUpdatedAt = info.updatedAt; }
+        });
+
+        if (changed) {
+          try { localStorage.setItem(historyKey, JSON.stringify(list)); } catch (e) { }
+        }
+      });
+    } catch (error) {
+      console.warn('[admin-orders] Gagal sinkron status ke riwayat user:', error);
+    }
+  }
+
   function items(order) { return Array.isArray(order.cart) ? order.cart : (Array.isArray(order.items) ? order.items : []); }
   function total(order) { var value = Number(order.totalPrice); if (Number.isFinite(value) && value >= 0) return value; return items(order).reduce(function (s, i) { return s + Math.max(0, Number(i.price) || 0) * Math.max(0, Number(i.quantity || i.qty) || 0); }, 0); }
   function normalizeMapAddress(addressValue) {
@@ -244,11 +315,11 @@
     document.getElementById('orders-summary').textContent = visible.length + ' pesanan ditampilkan dari ' + orders.length + ' pesanan.';
     if (!visible.length) { orderList.innerHTML = '<div class="empty">Belum ada pesanan yang sesuai.</div>'; return; }
     orderList.innerHTML = visible.map(function (order) {
-      var customer = order.customer || {}; var identity = resolveIdentity(order); var list = items(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierValue = getAssignedCourier(order); var courierOptionsMarkup = courierOptions.map(function (courier) { return '<option value="' + esc(courier) + '"' + (courierValue === courier ? ' selected' : '') + '>' + esc(courier) + '</option>'; }).join(''); var nextAction = getNextAction(order); var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : 'tidak diketahui'); var actionAriaLabel = nextAction.disabled ? 'Pesanan selesai' : 'Ubah status pesanan menjadi ' + nextAction.label; var isCancelled = validStatus(order.status) === 'dibatalkan'; var canArchive = archiveMode ? false : (validStatus(order.status) === 'selesai');
-        return '<article class="order-card' + (isCancelled ? ' is-cancelled' : '') + '" data-order-id="' + esc(order.id) + '" data-owner-id="' + esc(ownerId) + '">' + (isCancelled ? '<div class="cancelled-banner">✕ Pesanan Dibatalkan</div>' : '') + '<div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(identity.username) + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong> · ID: ' + esc(ownerId) + '</p>' + avatarMarkup(identity) + '</div><select class="status-select" data-status-id="' + esc(order.id) + '" aria-label="Status pesanan"' + (isCancelled ? ' disabled' : '') + '>' + statuses.map(function (s) { return '<option value="' + s + '"' + (validStatus(order.status) === s ? ' selected' : '') + '>' + actionLabel(s) + '</option>'; }).join('') + '</select></div>' + (isHomeDelivery(order) ? '<div class="delivery-assignment"><label for="courier-' + esc(order.id) + '">Kurir pengantar</label><select class="courier-select" id="courier-' + esc(order.id) + '" data-courier-id="' + esc(order.id) + '" aria-label="Pilih kurir untuk pesanan ' + esc(order.id) + '">' + courierOptionsMarkup + '<option value="Belum ditugaskan"' + (courierValue === 'Belum ditugaskan' ? ' selected' : '') + '>Belum ditugaskan</option></select><p class="courier-note">Petugas terpilih: <strong>' + esc(courierValue) + '</strong></p></div>' : '') + '<div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(i.quantity || i.qty || 0) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="primary-action-row"><button class="order-primary-action' + (nextAction.disabled ? ' is-complete' : '') + '" type="button" aria-label="' + esc(actionAriaLabel) + '" data-action-status="' + esc(nextAction.status) + '" data-action-id="' + esc(order.id) + '"' + (nextAction.disabled ? ' disabled' : '') + '>' + esc(nextAction.label) + '</button></div><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button>' + (mapsLink ? '<a class="action maps-link" href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>' : '') + (validStatus(order.status) === 'selesai' || isCancelled ? '' : '<button class="action danger" type="button" data-delete-id="' + esc(order.id) + '">Hapus</button>') + (canArchive ? '<button class="action archive-action" type="button" data-archive-id="' + esc(order.id) + '" title="Sembunyikan dari daftar utama dan simpan di Arsip Admin (tidak menghapus permanen, tidak mengubah riwayat user)">Arsipkan Pesanan</button>' : '') + '</div></div></article>';
+      var customer = order.customer || {}; var identity = resolveIdentity(order); var list = items(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierValue = getAssignedCourier(order); var courierOptionsMarkup = courierOptions.map(function (courier) { return '<option value="' + esc(courier) + '"' + (courierValue === courier ? ' selected' : '') + '>' + esc(courier) + '</option>'; }).join(''); var nextAction = getNextAction(order); var ownerId = order.userId || (order.__storageKey ? String(order.__storageKey).replace(/^dikyOrders_/, '') : 'tidak diketahui'); var actionAriaLabel = nextAction.disabled ? 'Pesanan selesai' : 'Ubah status pesanan menjadi ' + nextAction.label; var isCancelled = validStatus(order.status) === 'dibatalkan'; var canBeArchived = !archiveMode && canArchive(order);
+        return '<article class="order-card' + (isCancelled ? ' is-cancelled' : '') + '" data-order-id="' + esc(order.id) + '" data-owner-id="' + esc(ownerId) + '">' + (isCancelled ? '<div class="cancelled-banner">✕ Pesanan Dibatalkan</div>' : '') + '<div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(identity.username) + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong> · ID: ' + esc(ownerId) + '</p>' + avatarMarkup(identity) + '</div><select class="status-select" data-status-id="' + esc(order.id) + '" aria-label="Status pesanan"' + (isCancelled ? ' disabled' : '') + '>' + statuses.map(function (s) { return '<option value="' + s + '"' + (validStatus(order.status) === s ? ' selected' : '') + '>' + actionLabel(s) + '</option>'; }).join('') + '</select></div>' + (isHomeDelivery(order) ? '<div class="delivery-assignment"><label for="courier-' + esc(order.id) + '">Kurir pengantar</label><select class="courier-select" id="courier-' + esc(order.id) + '" data-courier-id="' + esc(order.id) + '" aria-label="Pilih kurir untuk pesanan ' + esc(order.id) + '">' + courierOptionsMarkup + '<option value="Belum ditugaskan"' + (courierValue === 'Belum ditugaskan' ? ' selected' : '') + '>Belum ditugaskan</option></select><p class="courier-note">Petugas terpilih: <strong>' + esc(courierValue) + '</strong></p></div>' : '') + '<div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(typeof Satuan !== 'undefined' ? Satuan.format(i.quantity || i.qty, i.unit) : (i.quantity || i.qty || 0)) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="primary-action-row"><button class="order-primary-action' + (nextAction.disabled ? ' is-complete' : '') + '" type="button" aria-label="' + esc(actionAriaLabel) + '" data-action-status="' + esc(nextAction.status) + '" data-action-id="' + esc(order.id) + '"' + (nextAction.disabled ? ' disabled' : '') + '>' + esc(nextAction.label) + '</button></div><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button>' + (mapsLink ? '<a class="action maps-link" href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a>' : '') + (validStatus(order.status) === 'selesai' || isCancelled ? '' : '<button class="action danger" type="button" data-delete-id="' + esc(order.id) + '">Hapus</button>') + (canBeArchived ? '<button class="action archive-action" type="button" data-archive-id="' + esc(order.id) + '" title="Sembunyikan dari daftar utama dan simpan di Arsip Admin (tidak menghapus permanen, tidak mengubah riwayat user)">Arsipkan Pesanan</button>' : '') + '</div></div></article>';
     }).join('');
   }
-  function detail(id) { var order = orders.find(function (o) { return String(o.id) === String(id); }); if (!order) return; var c = order.customer || {}; var identity = resolveIdentity(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierText = getAssignedCourier(order); document.getElementById('order-detail').innerHTML = '<div class="detail"><p><strong>ID:</strong> ' + esc(order.id) + '</p><p><strong>Pelanggan:</strong> ' + esc(c.name || order.customerName || '-') + '</p><p><strong>Jenis kelamin:</strong> ' + esc(identity.gender) + '</p><p><strong>Tanggal lahir:</strong> ' + esc(identity.birthDate) + '</p><p><strong>Telepon:</strong> ' + esc(c.phone || order.phone || '-') + '</p><p><strong>Alamat:</strong> ' + esc(c.address || order.address || '-') + '</p><p><strong>Kurir yang ditugaskan:</strong> ' + esc(courierText) + '</p>' + (mapsLink ? '<p><strong>Rute:</strong> <a href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a></p>' : '') + '<p><strong>Status:</strong> ' + esc(validStatus(order.status)) + '</p><p><strong>Total:</strong> ' + money(total(order)) + '</p><ul class="detail-items">' + items(order).map(function (i) { return '<li>' + esc(i.name) + ' × ' + esc(i.quantity || i.qty || 0) + '</li>'; }).join('') + '</ul></div>'; if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', ''); }
+  function detail(id) { var order = orders.find(function (o) { return String(o.id) === String(id); }); if (!order) order = readArchive().find(function (entry) { return entry && String(entry.id) === String(id); }); if (!order) return; var c = order.customer || {}; var identity = resolveIdentity(order); var mapsLink = isHomeDelivery(order) ? buildGoogleMapsLink(order) : ''; var courierText = getAssignedCourier(order); document.getElementById('order-detail').innerHTML = '<div class="detail"><p><strong>ID:</strong> ' + esc(order.id) + '</p><p><strong>Pelanggan:</strong> ' + esc(c.name || order.customerName || '-') + '</p><p><strong>Jenis kelamin:</strong> ' + esc(identity.gender) + '</p><p><strong>Tanggal lahir:</strong> ' + esc(identity.birthDate) + '</p><p><strong>Telepon:</strong> ' + esc(c.phone || order.phone || '-') + '</p><p><strong>Alamat:</strong> ' + esc(c.address || order.address || '-') + '</p><p><strong>Kurir yang ditugaskan:</strong> ' + esc(courierText) + '</p>' + (mapsLink ? '<p><strong>Rute:</strong> <a href="' + esc(mapsLink) + '" target="_blank" rel="noopener noreferrer">Buka di Google Maps</a></p>' : '') + '<p><strong>Status:</strong> ' + esc(validStatus(order.status)) + '</p><p><strong>Total:</strong> ' + money(total(order)) + '</p><ul class="detail-items">' + items(order).map(function (i) { return '<li>' + esc(i.name) + ' × ' + esc(typeof Satuan !== 'undefined' ? Satuan.format(i.quantity || i.qty, i.unit) : (i.quantity || i.qty || 0)) + '</li>'; }).join('') + '</ul></div>'; if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', ''); }
   function deleteOrder(id) {
     var order = orders.find(function (item) { return String(item.id) === String(id); });
     if (!order) return;
@@ -325,7 +396,7 @@
     orders = []; render();
   }
   // ============================================================
-  // SISTEM ARSIP PESANAN (dipanggil tombol "Arsipkan" per kartu selesai)
+  // SISTEM ARSIP PESANAN (dipanggil tombol "Arsipkan Pesanan" per kartu)
   // ============================================================
   var ARCHIVE_KEY = 'dikyArchivedOrders';
   var archiveMode = false;
@@ -341,17 +412,18 @@
     catch (error) { window.alert('Arsip tidak dapat disimpan karena penyimpanan browser penuh.'); return false; }
   }
 
-  // Deteksi pintar: pesanan hanya boleh diarsipkan jika statusnya SUDAH
-  // 'selesai' (sudah lewat tombol Selesai di admin + tampil di tab Selesai
-  // orders.html). Selain itu (menunggu/diproses/dikirim/siap_diambil/menunggu
-  // di success.html/dibatalkan) tombol arsip TIDAK ditampilkan.
-  function canArchive(order) { return validStatus(order.status) === 'selesai'; }
+  // Pesanan dapat diarsipkan setelah selesai atau dibatalkan. Status lain
+  // harus tetap aktif agar proses pesanan tidak terlewat.
+  function canArchive(order) {
+    var status = validStatus(order.status);
+    return status === 'selesai' || status === 'dibatalkan';
+  }
 
   function archiveOrder(id) {
     var order = orders.find(function (item) { return String(item.id) === String(id); });
     if (!order) return;
     if (!canArchive(order)) {
-      window.alert('Pesanan belum berstatus Selesai, sehingga belum bisa diarsipkan.');
+      window.alert('Pesanan harus berstatus Selesai atau Dibatalkan sebelum dapat diarsipkan.');
       return;
     }
     if (!window.confirm('Arsipkan pesanan ' + (order.id || '') + '? Pesanan disembunyikan dari daftar utama panel admin (TIDAK dihapus) dan pindah ke Arsip Admin.')) return;
@@ -406,10 +478,10 @@
       return !query || text.toLowerCase().indexOf(query) !== -1;
     });
     document.getElementById('orders-summary').textContent = 'ARSIP ADMIN — ' + visible.length + ' pesanan diarsipkan. Pesanan di sini disembunyikan dari daftar utama (tidak dihapus).';
-    if (!visible.length) { orderList.innerHTML = '<div class="empty">Arsip kosong. Pesanan berstatus Selesai bisa diarsipkan dari daftar utama.</div>'; return; }
+    if (!visible.length) { orderList.innerHTML = '<div class="empty">Arsip kosong. Pesanan berstatus Selesai atau Dibatalkan bisa diarsipkan dari daftar utama.</div>'; return; }
     orderList.innerHTML = visible.map(function (order) {
       var customer = order.customer || {}; var identity = resolveIdentity(order); var list = items(order);
-      return '<article class="order-card is-archived" data-order-id="' + esc(order.id) + '"><div class="archived-banner">⧉ Pesanan Diarsipkan' + (order.archivedAt ? ' — ' + esc(new Date(order.archivedAt).toLocaleString('id-ID')) : '') + '</div><div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong>' + (order.__ownerId ? ' · ID: ' + esc(order.__ownerId) : '') + '</p>' + avatarMarkup(identity) + '</div></div><div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(i.quantity || i.qty || 0) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button><button class="action danger" type="button" data-delete-archived-id="' + esc(order.id) + '">Hapus</button></div></div></article>';
+      return '<article class="order-card is-archived" data-order-id="' + esc(order.id) + '"><div class="archived-banner">⧉ Pesanan Diarsipkan' + (validStatus(order.status) === 'dibatalkan' ? ' — Dibatalkan' : '') + (order.archivedAt ? ' — ' + esc(new Date(order.archivedAt).toLocaleString('id-ID')) : '') + '</div><div class="order-top"><div><p class="order-id">' + esc(order.id || 'Tanpa ID') + '</p><p class="order-meta">' + esc(customer.name || order.customerName || 'Pelanggan') + ' · ' + esc(order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : '-') + '</p><p class="order-owner">Akun pemesan: <strong>' + esc(identity.username) + '</strong>' + (order.__ownerId ? ' · ID: ' + esc(order.__ownerId) : '') + '</p>' + avatarMarkup(identity) + '</div></div><div class="items">' + list.map(function (i) { return '<div class="item"><img src="' + esc(resolveImage(i)) + '" alt="' + esc(i.name || 'Produk') + '"><div class="item-info"><p class="item-name">' + esc(i.name || 'Produk') + '</p><p class="item-meta">' + esc(typeof Satuan !== 'undefined' ? Satuan.format(i.quantity || i.qty, i.unit) : (i.quantity || i.qty || 0)) + ' × ' + money(i.price) + '</p></div></div>'; }).join('') + '</div><div class="order-bottom"><strong class="total">' + money(total(order)) + '</strong><div class="actions"><button class="action" type="button" data-detail-id="' + esc(order.id) + '">Lihat Detail</button><button class="action danger" type="button" data-delete-archived-id="' + esc(order.id) + '">Hapus</button></div></div></article>';
     }).join('');
   }
 

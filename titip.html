@@ -39,10 +39,13 @@
         <h2 class="info-title">Belanja online tutup, tapi titip beli tetap buka</h2>
         <p class="info-text">
           Toko menerima pesanan online pukul <strong id="jam-operasional">07.00 - 18.00</strong>.
-          Di luar jam tersebut Anda tetap bisa <strong>menitipkan sayur</strong> untuk dibelikan
-          di pasar esok pagi, langsung dari halaman ini tanpa perlu datang ke rumah.
-          Jika ada produk yang ternyata <strong>habis di pasar</strong>, produk itu tidak
-          dibelikan dan Anda akan mendapat pemberitahuan di halaman ini.
+          Di luar jam tersebut, layanan belanja online tutup tetapi titip beli tetap buka:
+          Anda dapat mengirim titipan melalui halaman ini agar dibelikan di pasar esok pagi,
+          tanpa perlu datang ke rumah. Silakan kembali ke halaman ini sekitar pukul
+          <strong>08.00–09.00 pagi</strong> untuk melihat kabar dari admin setelah pulang dari pasar
+          dan melanjutkan checkout jika produk tersedia. Jika ada produk yang
+          <strong>habis di pasar</strong>, produk tersebut tidak dibelikan dan pemberitahuannya
+          akan tampil di halaman ini.
         </p>
       </div>
     </section>
@@ -113,8 +116,34 @@
 
   <div class="toast" id="toast">Tersimpan</div>
 
+  <dialog class="titip-confirm-dialog" id="titip-confirm-dialog" aria-labelledby="titip-confirm-title"
+    aria-describedby="titip-confirm-message">
+    <div class="titip-confirm-card">
+      <p class="eyebrow">Penting · Mohon Dibaca</p>
+      <h2 id="titip-confirm-title">Konfirmasi Titipan untuk Besok Pagi</h2>
+      <p id="titip-confirm-message">
+        Titipan Anda baru akan diteruskan ke admin setelah Anda menyetujui pesan ini.
+        Jika Anda mengirim titipan pada malam hari atau di luar jam belanja online
+        <strong>07.00–18.00</strong>, admin akan membelikan produk di pasar esok pagi.
+        Silakan kembali ke halaman Titip Beli ini sekitar pukul <strong>08.00–09.00 pagi</strong>
+        untuk melihat hasil belanja admin dan pemberitahuan jika ada produk yang habis.
+        Produk yang habis di pasar tidak akan dibelikan. Setelah titipan siap, Anda dapat
+        melanjutkan ke checkout dari halaman ini.
+      </p>
+      <label class="titip-confirm-check">
+        <input id="titip-confirm-read" type="checkbox">
+        <span>Saya sudah membaca dan memahami pemberitahuan di atas.</span>
+      </label>
+      <div class="titip-confirm-actions">
+        <button class="button button-light" id="titip-confirm-cancel" type="button">Kembali</button>
+        <button class="button button-primary" id="titip-confirm-submit" type="button" disabled>Oke, Kirim Titipan</button>
+      </div>
+    </div>
+  </dialog>
+
   <script src="storage-helper.js"></script>
   <script src="titip-helper.js"></script>
+  <script src="satuan.js"></script>
   <script src="titip.js"></script>
   <script src="smart-guide-toast.js"></script>
   <script>

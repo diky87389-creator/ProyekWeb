@@ -23,9 +23,10 @@
         return debt && typeof debt === 'object' && Array.isArray(debt.items);
       }).map(function (debt) {
         debt.items = debt.items.map(function (item) {
-          var qty = Math.floor(Number(item.qty || item.quantity));
+          var qty = Number(item.qty || item.quantity);
           var price = Number(item.price);
           if (!Number.isFinite(qty) || qty < 0) qty = 0;
+          qty = Math.round(qty * 100) / 100;
           if (!Number.isFinite(price) || price < 0) price = 0;
           return Object.assign({}, item, { qty: qty, quantity: qty, price: price });
         });
@@ -80,6 +81,22 @@
     return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   }
 
+  // Jatuh tempo otomatis: tanggal transaksi + 30 hari.
+  // Bila dueDate sudah tersimpan, nilai itu yang dipakai (sinkron dengan admin).
+  var JATUH_TEMPO_HARI = 30;
+  function dueDateOf(debt) {
+    if (!debt) return null;
+    if (debt.dueDate) {
+      var explicit = new Date(debt.dueDate);
+      if (!isNaN(explicit.getTime())) return explicit;
+    }
+    var base = new Date(debt.date || debt.createdAt);
+    if (isNaN(base.getTime())) return null;
+    var due = new Date(base.getTime());
+    due.setDate(due.getDate() + JATUH_TEMPO_HARI);
+    return due;
+  }
+
   function calcTotal(debt) {
     return (debt.items || []).reduce(function (sum, item) {
       var qty = Number(item.qty || item.quantity);
@@ -90,6 +107,47 @@
 
   function getInitials(name) {
     return (name || "?").trim().split(/\s+/).map(function (w) { return w[0]; }).join("").slice(0, 2).toUpperCase();
+  }
+
+  // ---- Dukungan pembayaran sebagian (paidItemKeys) ----
+  // Logika harus IDENTIK dengan hutang-bayar2.js agar tampilan konsisten.
+  function isShippingRaw(item) {
+    if (!item) return false;
+    if (item.isShipping === true || item.shipping === true) return true;
+    return String(item.name || "").trim().toLowerCase() === "ongkir";
+  }
+
+  function itemKeyOf(item, index) {
+    if (isShippingRaw(item)) return "SHIP";
+    return "ITEM-" + (item && item.id ? String(item.id) : "x") + "-" + index;
+  }
+
+  function itemValueOf(item) {
+    return (Number(item && (item.qty || item.quantity)) || 0) * (Number(item && item.price) || 0);
+  }
+
+  function paidKeysOf(debt) {
+    return Array.isArray(debt && debt.paidItemKeys) ? debt.paidItemKeys : [];
+  }
+
+  // Sisa hutang belum dibayar. Ongkir ikut produk, tidak bisa terpisah.
+  function remainingOf(debt) {
+    var items = Array.isArray(debt && debt.items) ? debt.items : [];
+    var unpaidProducts = [];
+    var unpaidShipping = [];
+    items.forEach(function (it, idx) {
+      var key = itemKeyOf(it, idx);
+      if (paidKeysOf(debt).indexOf(key) !== -1) return;
+      if (isShippingRaw(it)) unpaidShipping.push(it);
+      else unpaidProducts.push(it);
+    });
+    var products = unpaidProducts.reduce(function (s, it) { return s + itemValueOf(it); }, 0);
+    var shipping = unpaidProducts.length ? unpaidShipping.reduce(function (s, it) { return s + itemValueOf(it); }, 0) : 0;
+    return products + shipping;
+  }
+
+  function isPendingRequest(debt) {
+    return !!(debt && debt.paymentRequest && String(debt.paymentRequest.status) === "menunggu");
   }
 
   // Tampilkan identitas yang tersimpan pada snapshot kasbon.
@@ -180,13 +238,18 @@
 
     debtList.innerHTML = filtered.map(function (d) {
       var total = Number(d.totalAmount) || calcTotal(d);
-      var itemsText = (d.items || []).map(function (i) { return i.name + " ×" + (i.qty || i.quantity || 0); }).join(", ");
+      var sisa = remainingOf(d);
+      var sudahSebagian = sisa > 0 && sisa < total;
+      var isPending = isPendingRequest(d);
+      var itemsText = (d.items || []).map(function (i) {
+        return i.name + ' ×' + (typeof Satuan !== 'undefined' ? Satuan.format(i.qty || i.quantity, i.unit) : (i.qty || i.quantity || 0));
+      }).join(', ');
       var itemsImages = (d.items || []).map(function (i) { return itemImageMarkup(i); }).join('');
-      var payInfoBtn = d.status === "belum"
-        ? '<button class="action-btn action-pay" data-action="pay" data-id="' + d.id + '">💳 Cara Bayar</button>'
+      var payInfoBtn = (d.status === "belum" && sisa > 0)
+        ? '<button class="btn-pay-main" data-action="pay" data-id="' + d.id + '">💳 Bayar Sekarang' + (sudahSebagian ? ' · ' + formatCurrency(sisa) : '') + '</button>'
         : "";
       var waBtn = d.phone
-        ? '<button class="action-btn action-wa" data-action="wa" data-id="' + d.id + '">💬 WhatsApp</button>'
+        ? '<button class="action-btn action-wa" data-action="wa" data-id="' + d.id + '" title="Hubungi via WhatsApp">💬 WhatsApp</button>'
         : "";
       // ATURAN HAPUS (users): tombol "Hapus" HANYA muncul untuk kasbon lunas.
       var deleteBtn = d.status === "lunas"
@@ -201,22 +264,26 @@
         "<div>" +
         '<p class="debt-name">' + escapeHtml(d.customerName) + "</p>" +
         '<p class="debt-sub">Username: ' + escapeHtml(d.username || '-') + '</p>' +
-        '<p class="debt-sub">' + formatDate(d.date) + (d.dueDate ? " • Jatuh tempo " + formatDate(d.dueDate) : "") + "</p>" +
+        '<p class="debt-sub">' + formatDate(d.date) + " • Jatuh tempo " + formatDate(dueDateOf(d)) + "</p>" +
         '<p class="debt-sub">' + escapeHtml(itemsText || "-") + "</p>" +
+        (sudahSebagian ? '<p class="debt-sub debt-partial">Terbayar ' + formatCurrency(total - sisa) + ' · Sisa ' + formatCurrency(sisa) + '</p>' : '') +
         '<div class="debt-item-images">' + itemsImages + '</div>' +
         "</div>" +
         "</div>" +
         '<div class="debt-amount">' +
         "<strong>" + formatCurrency(total) + "</strong>" +
         '<span class="status-badge status-' + d.status + '">' + (d.status === "lunas" ? "Lunas" : "Belum Lunas") + "</span>" +
+        (isPending ? '<span class="status-badge status-pending">⏳ Menunggu Verifikasi Admin</span>' : '') +
         "</div>" +
         "</div>" +
         '<div class="debt-actions">' +
-        payInfoBtn +
-        '<button class="action-btn" data-action="receipt" data-id="' + d.id + '">🧾 Lihat Struk</button>' +
-        '<button class="action-btn" data-action="detail" data-id="' + d.id + '">📋 Histori</button>' +
+        (payInfoBtn ? '<div class="actions-primary">' + payInfoBtn + '</div>' : '') +
+        '<div class="actions-secondary">' +
+        '<button class="action-btn" data-action="receipt" data-id="' + d.id + '" title="Lihat struk">🧾 Struk</button>' +
+        '<button class="action-btn" data-action="detail" data-id="' + d.id + '" title="Histori transaksi">📋 Histori</button>' +
         waBtn +
-        deleteBtn +
+        "</div>" +
+        (deleteBtn ? '<div class="actions-danger">' + deleteBtn + '</div>' : '') +
         "</div>" +
         "</article>"
       );
@@ -401,7 +468,7 @@
       "Saya ingin menanyakan/mengonfirmasi tagihan atas nama " + debt.customerName + ":\n\n" +
       itemsText + "\n\n" +
       "Total: *" + formatCurrency(total) + "*\n\n" +
-      "Jatuh tempo: " + formatDate(debt.dueDate) + "\n\n" +
+      "Jatuh tempo: " + formatDate(dueDateOf(debt)) + "\n\n" +
       "Terima kasih 🙏";
     var phone = (debt.phone || "").replace(/[^0-9]/g, "");
     var waPhone = phone;
@@ -433,4 +500,10 @@
   // --- Init ---
   if (!requireLogin()) return;
   renderList();
+
+  // Dipakai hutang-bayar2.js untuk memuat ulang kartu setelah pembayaran.
+  window.__hutangRenderList = function () {
+    debts = loadData();
+    renderList();
+  };
 })();

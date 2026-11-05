@@ -55,6 +55,7 @@
       // Terpisah total dari kasbon/hutang: titipan baru menjadi hutang
       // setelah benar-benar dibeli di pasar dan difinalisasi oleh admin.
       'titipan': `dikyTitipan_${user.id}`,
+      'titipanDraft': `dikyTitipanDraft_${user.id}`,
       'titipanAdmin': `dikyTitipanAdmin_${user.id}`,
       // Konteks menautkan proses checkout.html aktif dengan titipan asalnya (Titip Beli).
       'titipanCheckout': `dikyTitipanCheckout_${user.id}`,
@@ -187,8 +188,10 @@
     return items.map(function (item) {
       if (!item || !item.id) return null;
       const price = toSafeNumber(item.price, -1);
-      const quantity = Math.floor(toSafeNumber(item.quantity, -1));
-      if (price < 0 || quantity < 1) return null;
+      // Kuantitas boleh pecahan (kg/ons = 0,5). JANGAN dibulatkan ke bawah.
+      const mentah = toSafeNumber(item.quantity, -1);
+      const quantity = Math.round(mentah * 100) / 100;
+      if (price < 0 || quantity <= 0) return null;
       return Object.assign({}, item, { price: price, quantity: quantity });
     }).filter(Boolean);
   }
@@ -455,7 +458,12 @@
         unit: String(item.unit || ''),
         unitIndex: Number.isInteger(item.unitIndex) ? item.unitIndex : 0,
         price: Number(item.price) || 0,
-        quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+        // Dukung pecahan 0,5 agar kg/ons tidak terpotong menjadi 0.
+        quantity: (() => {
+          const q = Number(item.quantity);
+          const aman = Number.isFinite(q) && q > 0 ? Math.round(q * 100) / 100 : 1;
+          return aman;
+        })(),
         image: image
       };
     }).filter(Boolean);

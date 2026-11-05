@@ -713,7 +713,7 @@ function isDuplicateUser(phoneNumber, emailAddress) {
   return findDuplicateIdentity(phoneNumber, emailAddress).duplicate;
 }
 
-function handleRegister(event) {
+async function handleRegister(event) {
   event.preventDefault();
 
   clearValidationStyles();
@@ -842,7 +842,7 @@ function handleRegister(event) {
     emailAddress: emailAddress.toLowerCase(),
     gender,
     birthDate,
-    password,
+    password: password,
     address: finalAddress || locationAddress,
     latitude: Number(latitude),
     longitude: Number(longitude),
@@ -850,15 +850,67 @@ function handleRegister(event) {
     authProvider: matchesPendingEmail ? pendingProfile.authProvider || 'email' : 'email'
   };
 
+  // ============================================================
+  // VERIFIKASI EMAIL (OTP) SEBELUM AKUN DISIMPAN
+  // ============================================================
+  // Akun BELUM dimasukkan ke daftar akun sampai kode 6 angka
+  // dimasukkan dengan benar. Data form tetap utuh di halaman ini.
+  // ------------------------------------------------------------
+
+  // Hash kata sandi (SHA-256) agar tidak tersimpan mentah.
+  const tombolDaftar = document.querySelector('#register-form button[type="submit"], form button[type="submit"]');
+  if (tombolDaftar) tombolDaftar.disabled = true;
+  try {
+    if (window.AuthUtil && typeof window.AuthUtil.hashPassword === 'function') {
+      const hasilHash = await window.AuthUtil.hashPassword(password);
+      if (hasilHash) newUser.password = hasilHash;
+    }
+  } catch (error) {
+    console.warn('Hash kata sandi gagal; kata sandi disimpan apa adanya.', error);
+  }
+
+  const lanjutkan = () => {
+    selesaikanPendaftaranSetelahOtp({ users: users, newUser: newUser });
+  };
+
+  if (window.OtpVerifikasi && typeof window.OtpVerifikasi.mulai === 'function') {
+    window.OtpVerifikasi.mulai({
+      email: newUser.emailAddress,
+      nama: newUser.fullName,
+      onVerified: function () {
+        if (tombolDaftar) tombolDaftar.disabled = false;
+        lanjutkan();
+      }
+    });
+  } else {
+    // Modul OTP tidak tersedia: lanjutkan tanpa verifikasi.
+    console.warn('Modul OTP tidak ditemukan; pendaftaran dilanjutkan tanpa verifikasi email.');
+    if (tombolDaftar) tombolDaftar.disabled = false;
+    lanjutkan();
+  }
+}
+
+/**
+ * Tahap 2 pendaftaran: dipanggil SETELAH verifikasi OTP berhasil.
+ * Menyimpan akun, membuat sesi, lalu mengarahkan ke index.html.
+ *
+ * Catatan: password sudah di-hash sebelum fungsi ini dipanggil.
+ */
+async function selesaikanPendaftaranSetelahOtp(data) {
+  if (!data) return;
+
+  const users = data.users;
+  const newUser = data.newUser;
+
   users.push(newUser);
   if (!saveRegisteredUsers(users)) {
     showToast('Pendaftaran belum dapat disimpan karena penyimpanan browser penuh. Kosongkan sebagian ruang lalu coba lagi.');
     return;
   }
-  // Catat identitas ke jejak permanen agar email & nomor telepon ini terkunci
-  // selamanya, bahkan bila akun langsung dihapus via Logout Bersih Total.
+
   recordUsedIdentity(newUser.id, newUser.phoneNumber, newUser.emailAddress);
   syncUserAddressRecord(newUser.address, newUser.latitude, newUser.longitude);
+
   const sessionSaved = saveActiveUser({
     id: newUser.id,
     userId: newUser.userId,
@@ -874,17 +926,18 @@ function handleRegister(event) {
     authProvider: newUser.authProvider,
     loggedAt: new Date().toISOString()
   });
+
   if (!sessionSaved) {
     showToast('Akun berhasil dibuat, tetapi sesi belum dapat disimpan karena storage penuh. Silakan login setelah mengosongkan ruang.');
     return;
   }
-  localStorage.removeItem(pendingGoogleKey);
 
+  localStorage.removeItem(pendingGoogleKey);
   showToast('Pendaftaran berhasil! Anda langsung masuk dan diarahkan ke beranda...');
 
   window.setTimeout(() => {
     window.location.href = 'index.html';
-  }, 1800);
+  }, 1600);
 }
 
 // Migrasi jejak identitas: pastikan email & nomor telepon yang ada di arsip

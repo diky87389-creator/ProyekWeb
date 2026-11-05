@@ -34,7 +34,7 @@
   var FALLBACK_IMAGE = 'images/Toko Sayur Online.png';
 
   // Status satu titipan (level permintaan, bukan level item).
-  var REQUEST_STATUSES = ['menunggu_dibeli', 'diproses', 'sebagian_habis', 'siap_checkout', 'sudah_checkout', 'siap_diambil', 'selesai', 'dibatalkan'];
+  var REQUEST_STATUSES = ['menunggu_dibeli', 'diproses', 'sebagian_habis', 'siap_checkout', 'sudah_checkout', 'siap_diambil', 'selesai', 'dibatalkan', 'habis_di_pasaran'];
 
   // Status satu item di dalam titipan.
   var ITEM_STATUSES = ['diminta', 'dibeli', 'habis_dipasar'];
@@ -135,8 +135,15 @@
     if (!item || typeof item !== 'object') return null;
     var status = String(item.status || 'diminta').trim().toLowerCase();
     if (ITEM_STATUSES.indexOf(status) === -1) status = 'diminta';
-    var qty = Math.floor(safeNumber(item.qty != null ? item.qty : item.quantity));
-    if (qty < 1) qty = 1;
+    // Kuantitas boleh pecahan (kg/ons = 0,5). JANGAN dibulatkan ke bawah,
+    // karena 0,5 kg akan berubah menjadi 1 kg tanpa sepengetahuan user.
+    var mentah = safeNumber(item.qty != null ? item.qty : item.quantity);
+    var qty = Math.round(mentah * 100) / 100;
+    if (!(qty > 0)) {
+      qty = (typeof window !== 'undefined' && window.Satuan)
+        ? window.Satuan.minimum(item.unit)
+        : 1;
+    }
     return {
       id: String(item.id || ''),
       name: String(item.name || 'Produk').trim(),
@@ -144,7 +151,7 @@
       qty: qty,
       quantity: qty,
       catatan: String(item.catatan || item.note || '').trim(),
-      image: item.image || '',
+      image: typeof item.image === 'string' && item.image.indexOf('data:') !== 0 ? item.image : '',
       status: status,
       // Harga pasar diisi admin saat menandai 'dibeli'. Selama 'diminta'
       // dan 'habis_dipasar' nilainya 0 (belum ditagihkan).
@@ -169,7 +176,8 @@
   function computeDitagihkan(items) {
     return (Array.isArray(items) ? items : []).reduce(function (sum, item) {
       if (!item || String(item.status) !== 'dibeli') return sum;
-      return sum + safeNumber(item.hargaPasar) * Math.floor(safeNumber(item.qty != null ? item.qty : item.quantity));
+      var quantity = safeNumber(item.qty != null ? item.qty : item.quantity);
+      return sum + safeNumber(item.hargaPasar) * Math.round(quantity * 100) / 100;
     }, 0);
   }
 
@@ -193,11 +201,13 @@
 
   function buildRequestBase() {
     var user = activeUser() || {};
+    var profileImage = user.profileImage || user.avatarUrl || null;
     return {
       userId: user.id ? String(user.id) : null,
       username: user.username || null,
       customerName: user.fullName || user.name || user.username || 'Pelanggan',
-      phone: user.phoneNumber || user.contactInfo || null
+      phone: user.phoneNumber || user.contactInfo || null,
+      profileImage: typeof profileImage === 'string' && profileImage.indexOf('data:') !== 0 ? profileImage : null
     };
   }
 
@@ -231,24 +241,50 @@
       catatan: ''
     }));
 
+    var previousUserData;
+    try {
+      previousUserData = localStorage.getItem(userKey);
+    } catch (error) {
+      console.error('Data titipan pelanggan tidak dapat dibaca sebelum disimpan.', error);
+      return { ok: false, request: null, reason: 'Data titipan tidak dapat dibaca. Silakan muat ulang halaman dan coba lagi.' };
+    }
+
     var existing = readArray(userKey);
     existing.unshift(request);
     if (!writeArray(userKey, existing)) {
       return { ok: false, request: null, reason: 'Titipan tidak dapat disimpan karena penyimpanan browser penuh.' };
     }
 
-    syncToAdminCopy(request);
+    if (!syncToAdminCopy(request)) {
+      try {
+        if (previousUserData === null) localStorage.removeItem(userKey);
+        else localStorage.setItem(userKey, previousUserData);
+      } catch (error) {
+        console.error('Titipan gagal dikirim ke admin dan pemulihan data pelanggan gagal.', request.id, error);
+      }
+      return {
+        ok: false,
+        request: null,
+        reason: 'Titipan tidak berhasil masuk ke daftar admin. Periksa ruang penyimpanan browser, lalu coba kirim kembali.'
+      };
+    }
+
     return { ok: true, request: request, reason: '' };
   }
 
   function syncToAdminCopy(request) {
     if (!request || !request.id) return false;
     var adminKey = typeof getUserStorageKey === 'function' ? getUserStorageKey('titipanAdmin') : null;
-    if (!adminKey) return false;
+    if (!adminKey) {
+      console.error('Salinan titipan admin tidak dapat dibuat karena sesi pengguna tidak valid.', request.id);
+      return false;
+    }
     var adminList = readArray(adminKey);
     if (!adminList.some(function (entry) { return entry && String(entry.id) === String(request.id); })) {
       adminList.unshift(Object.assign({}, request));
-      return writeArray(adminKey, adminList);
+      var saved = writeArray(adminKey, adminList);
+      if (!saved) console.error('Salinan titipan tidak dapat disimpan ke ' + adminKey + '.', request.id);
+      return saved;
     }
     return true;
   }
@@ -352,8 +388,19 @@
   function siapkanCheckoutTitipan(requestId) {
     var request = getTitipanUser().find(function (entry) { return String(entry.id) === String(requestId); });
     if (!request) return { ok: false, reason: 'Titipan tidak ditemukan.' };
+    if (String(request.status) === 'habis_di_pasaran') {
+      return { ok: false, reason: 'Semua produk titipan habis di pasar. Titipan ini tidak dapat dilanjutkan ke checkout.' };
+    }
     if (String(request.status) !== 'siap_checkout') {
       return { ok: false, reason: 'Titipan belum difinalisasi admin atau sudah diproses.' };
+    }
+    if ((request.items || []).some(function (item) { return String(item.status) === 'diminta'; })) {
+      return { ok: false, reason: 'Ada produk titipan yang belum ditandai dibeli atau habis di pasar.' };
+    }
+    if ((request.items || []).some(function (item) {
+      return String(item.status) === 'dibeli' && !(safeNumber(item.hargaPasar) > 0);
+    })) {
+      return { ok: false, reason: 'Harga pasar produk yang dibeli belum lengkap.' };
     }
     var dibeli = (request.items || []).filter(function (item) {
       return String(item.status) === 'dibeli' && safeNumber(item.hargaPasar) > 0;
@@ -368,7 +415,7 @@
         unit: item.unit || '',
         unitIndex: 0,
         price: safeNumber(item.hargaPasar),
-        quantity: Math.floor(safeNumber(item.qty != null ? item.qty : item.quantity)),
+        quantity: Math.round(safeNumber(item.qty != null ? item.qty : item.quantity) * 100) / 100,
         image: (typeof item.image === 'string' && item.image.indexOf('data:') !== 0) ? item.image : '',
         fromTitipan: request.id
       };
@@ -448,9 +495,67 @@
     return true;
   }
 
-  // Cari status pesanan (orders/riwayat) yang terkait sebuah titipan.
-  // Dipakai untuk aturan Riwayat Titipan: baru tampil setelah pesanan
-  // mencapai tab "Selesai" di orders.html.
+  // Hapus titipan dari daftar milik user (titip.html)
+  // Isolasi dua arah: HANYA menghapus dari key milik user (dikyTitipan_<userId>).
+  // Data admin di dikyTitipanAdmin_* dan arsip admin dikyTitipArchive TIDAK DISENTUH.
+  function hapusTitipanUser(requestId) {
+    if (!requestId) return false;
+    var userKey = typeof getUserStorageKey === 'function' ? getUserStorageKey('titipan') : null;
+    if (!userKey) return false;
+    var list = readArray(userKey);
+    var filtered = list.filter(function (entry) {
+      return !entry || String(entry.id) !== String(requestId);
+    });
+    if (filtered.length === list.length) return false;
+    return writeArray(userKey, filtered);
+  }
+
+  // Arsipkan titipan dari panel admin (admin-titip.html):
+  // Menghapus dari salinan kerja admin dikyTitipanAdmin_<userId> lalu memasukkan ke dikyTitipArchive.
+  // Data user di dikyTitipan_<userId> TIDAK DISENTUH.
+  function arsipkanTitipanAdmin(request) {
+    if (!request || !request.id) return false;
+    var adminKey = request.__storageKey;
+    if (!adminKey) {
+      var ownerId = request.userId || getOwnerId(request);
+      if (ownerId) adminKey = 'dikyTitipanAdmin_' + ownerId;
+    }
+    if (!adminKey) return false;
+    var archiveBefore = readArchive();
+    var alreadyArchived = archiveBefore.some(function (entry) {
+      return entry && String(entry.id) === String(request.id);
+    });
+    var current = readArray(adminKey);
+    var kept = current.filter(function (entry) {
+      return !entry || String(entry.id) !== String(request.id);
+    });
+    if (kept.length === current.length) return alreadyArchived;
+    if (!writeArray(adminKey, kept)) return false;
+
+    // Free space in the active list before writing the archive copy. Writing
+    // the archive first can exhaust localStorage and make the active-list
+    // rewrite fail, leaving the UI reporting a failed archive operation.
+    if (alreadyArchived || appendArchive(request)) return true;
+
+    if (!writeArray(adminKey, current)) {
+      console.error('Arsip titipan gagal disimpan dan data aktif tidak berhasil dipulihkan.', request.id);
+    }
+    return false;
+  }
+
+  // Hapus permanen dari arsip admin dikyTitipArchive.
+  // Hanya menghapus di arsip admin; data user TIDAK DISENTUH.
+  function hapusPermanenArsipAdmin(requestId) {
+    if (!requestId) return false;
+    var archive = readArchive();
+    var kept = archive.filter(function (entry) {
+      return !entry || String(entry.id) !== String(requestId);
+    });
+    return writeArchive(kept);
+  }
+
+  // Cari status pesanan di seluruh orders milik user maupun global
+  // Mendukung pengecekan apakah pesanan terkait titipan sudah sampai ke tab "selesai"
   function cariStatusPesananTitipan(requestId) {
     if (!requestId) return null;
     var keys = [];
@@ -526,6 +631,7 @@
       case 'siap_diambil': return 'Siap Diambil';
       case 'selesai': return 'Selesai';
       case 'dibatalkan': return 'Dibatalkan';
+      case 'habis_di_pasaran': return 'Tidak dapat diproses — produk habis di pasar';
       default: return String(status || '-');
     }
   }
@@ -577,6 +683,9 @@
     readArchive: readArchive,
     writeArchive: writeArchive,
     appendArchive: appendArchive,
+    hapusTitipanUser: hapusTitipanUser,
+    arsipkanTitipanAdmin: arsipkanTitipanAdmin,
+    hapusPermanenArsipAdmin: hapusPermanenArsipAdmin,
     summarize: summarize,
     requestStatusLabel: requestStatusLabel,
     itemStatusLabel: itemStatusLabel,

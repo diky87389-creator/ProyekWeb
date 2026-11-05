@@ -85,8 +85,52 @@
     <div class="toast" id="register-toast"></div>
   </main>
 
+  <!-- ============ POPUP VERIFIKASI OTP PENDAFTARAN ============ -->
+  <div class="otp-modal" id="otp-modal" hidden role="dialog" aria-modal="true" aria-labelledby="otp-title">
+    <div class="otp-modal-card">
+      <button class="otp-close" id="otp-close" type="button" aria-label="Tutup">×</button>
+
+      <div class="otp-head">
+        <div class="otp-icon" aria-hidden="true">📧</div>
+        <h2 id="otp-title">Verifikasi Email</h2>
+        <p class="otp-sub">Masukkan 6 angka yang kami kirim ke</p>
+        <p class="otp-email" id="otp-email-target">email Anda</p>
+      </div>
+
+      <div class="otp-demo-box" id="otp-demo-box" hidden>
+        <span class="otp-demo-label">⚠️ Mode Demo — Email.js belum aktif</span>
+        <span class="otp-demo-code" id="otp-demo-code">------</span>
+        <span class="otp-demo-hint">Kode ini hanya tampil di layar. Di produksi dikirim ke email.</span>
+      </div>
+
+      <form id="otp-form" autocomplete="off" novalidate>
+        <div class="otp-digits" role="group" aria-label="Kode verifikasi 6 angka">
+          <input type="text" inputmode="numeric" maxlength="1" id="otp-digit-0" aria-label="Angka 1" />
+          <input type="text" inputmode="numeric" maxlength="1" id="otp-digit-1" aria-label="Angka 2" />
+          <input type="text" inputmode="numeric" maxlength="1" id="otp-digit-2" aria-label="Angka 3" />
+          <input type="text" inputmode="numeric" maxlength="1" id="otp-digit-3" aria-label="Angka 4" />
+          <input type="text" inputmode="numeric" maxlength="1" id="otp-digit-4" aria-label="Angka 5" />
+          <input type="text" inputmode="numeric" maxlength="1" id="otp-digit-5" aria-label="Angka 6" />
+        </div>
+
+        <p class="otp-timer" id="otp-timer"></p>
+        <p class="otp-message" id="otp-message" hidden></p>
+
+        <div class="otp-actions">
+          <button type="button" class="otp-btn otp-btn-ghost" id="otp-cancel">Batal</button>
+          <button type="submit" class="otp-btn otp-btn-primary" id="otp-verify">Verifikasi</button>
+        </div>
+
+        <button type="button" class="otp-resend" id="otp-resend" disabled>Kirim ulang kode</button>
+      </form>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="storage-helper.js?v=20260928a"></script>
+  <script src="auth-util.js"></script>
+  <script src="email-service.js"></script>
+  <script src="auth-otp.js"></script>
   <script src="daftar.js?v=20260928a"></script>
 </body>
 </html>

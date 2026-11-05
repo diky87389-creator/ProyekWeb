@@ -7,7 +7,7 @@
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; upgrade-insecure-requests">
   <script src="admin-gate.js"></script>
-  <title>Kelola Hutang - Warung Sayur Diky</title>
+  <title>Buku Kasbon - Warung Sayur Diky</title>
   <link rel="stylesheet" href="admin-hutang.css">
 </head>
 
@@ -20,10 +20,14 @@
     <section class="page-heading">
       <div>
         <p class="eyebrow">Keuangan toko</p>
-        <h1>Kelola Hutang</h1>
-        <p class="muted">Pantau dan validasi kasbon seluruh pelanggan.</p>
-      </div><button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button><button
-        id="archive-button" class="button button-light" type="button" style="margin-left:0.5rem">⎈ Arsip (0)</button>
+        <h1>Buku Kasbon</h1>
+        <p class="muted">Buku hutang pelanggan — cari nama dari A sampai Z, lihat riwayat, dan kelola status kasbon.</p>
+      </div>
+      <div class="heading-actions">
+        <button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button>
+        <button id="archive-button" class="button button-light" type="button">⎈ Arsip (0)</button>
+        <button id="print-button" class="button button-light" type="button">🖨️ Cetak Buku</button>
+      </div>
     </section>
     <section class="stats-grid" aria-label="Ringkasan hutang">
       <article class="stat-card"><span>📜</span>
@@ -41,24 +45,87 @@
           <p>Total Belum Lunas</p><strong id="unpaid-total">Rp0</strong>
         </div>
       </article>
+      <article class="stat-card"><span>⚠️</span>
+        <div>
+          <p>Lewat Jatuh Tempo</p><strong id="overdue-count">0</strong>
+        </div>
+      </article>
     </section>
-    <section class="toolbar"><label for="search-debts">Cari pelanggan, ID, atau order<input id="search-debts"
-          type="search" placeholder="Masukkan kata kunci"></label><label for="status-filter">Status<select
+
+    <section class="toolbar" id="book-toolbar">
+      <label for="search-debts">Cari nama, ID kasbon, atau ID order<input id="search-debts"
+          type="search" placeholder="Ketik nama pelanggan…"></label>
+      <label for="status-filter">Status<select
           id="status-filter">
           <option value="all">Semua status</option>
           <option value="belum">Belum Lunas</option>
           <option value="lunas">Lunas</option>
-        </select></label></section>
+          <option value="menunggak">Prioritas / Menunggak</option>
+          <option value="jatuh_tempo">Lewat Jatuh Tempo</option>
+        </select></label>
+      <label for="month-filter">Bulan transaksi<select id="month-filter">
+          <option value="all">Semua bulan</option>
+        </select></label>
+      <label for="year-filter">Tahun<select id="year-filter">
+          <option value="all">Semua tahun</option>
+        </select></label>
+    </section>
+
+    <nav class="az-index" id="az-index" aria-label="Indeks nama pelanggan A sampai Z"></nav>
+
     <p id="debts-summary" class="summary" aria-live="polite"></p>
+
     <section id="debts-list" class="debts-list" aria-live="polite"></section>
+
+    <section id="customer-sheet" class="customer-sheet" hidden aria-live="polite"></section>
+
+    <section class="calendar-panel" aria-label="Kalender kasbon">
+      <div class="calendar-head">
+        <button id="cal-prev" class="cal-nav" type="button" aria-label="Bulan sebelumnya">‹</button>
+        <div>
+          <p class="eyebrow">Kalender transaksi</p>
+          <h2 id="cal-title">—</h2>
+        </div>
+        <button id="cal-next" class="cal-nav" type="button" aria-label="Bulan berikutnya">›</button>
+      </div>
+      <div class="calendar-legend">
+        <span><i class="dot dot-unpaid"></i> Belum lunas</span>
+        <span><i class="dot dot-paid"></i> Lunas</span>
+        <span><i class="dot dot-overdue"></i> Lewat jatuh tempo</span>
+      </div>
+      <div class="calendar-weekdays" aria-hidden="true">
+        <span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span><span>Min</span>
+      </div>
+      <div id="calendar-grid" class="calendar-grid"></div>
+    </section>
   </main>
+
   <dialog id="detail-dialog">
     <div class="dialog-head">
       <h2>Detail Kasbon</h2><button id="close-dialog" class="close" type="button" aria-label="Tutup">×</button>
     </div>
     <div id="debt-detail"></div>
   </dialog>
-  <script src="admin-hutang.js?v=20261008b" defer></script>
+
+  <dialog id="note-dialog">
+    <div class="dialog-head">
+      <h2>Catatan Admin</h2><button id="close-note-dialog" class="close" type="button" aria-label="Tutup">×</button>
+    </div>
+    <form id="note-form" class="note-form">
+      <p class="muted" id="note-caption"></p>
+      <label for="note-input">Catatan untuk kasbon ini (hanya terlihat oleh admin)
+        <textarea id="note-input" rows="4" maxlength="500"
+          placeholder="Contoh: janji bayar tanggal 25, ditagih lewat WhatsApp…"></textarea>
+      </label>
+      <div class="note-actions">
+        <button type="button" id="note-cancel" class="button button-light">Batal</button>
+        <button type="submit" class="button button-primary">Simpan Catatan</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="satuan.js"></script>
+  <script src="admin-hutang.js?v=20261019b" defer></script>
 </body>
 
 </html>

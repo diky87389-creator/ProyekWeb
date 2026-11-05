@@ -571,3 +571,48 @@ dialog::backdrop {
   align-items: center;
   gap: 0.5rem;
 }
+
+/* Gaya Arsip Admin & Tombol Aksi */
+.page-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.titip-card.is-archived {
+  border-color: #cbd5e0;
+  background: #f7fafc;
+}
+
+.archived-banner {
+  background: #edf2f7;
+  color: #4a5568;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+}
+
+.action.archive-action {
+  color: #2b6cb0;
+  border-color: #bee3f8;
+  background: #ebf8ff;
+}
+
+.action.archive-action:hover {
+  background: #bee3f8;
+  color: #2c5282;
+}
+
+.action.danger {
+  color: #c53030;
+  border-color: #feb2b2;
+  background: #fff5f5;
+}
+
+.action.danger:hover {
+  background: #fed7d7;
+  color: #9b2c2c;
+}

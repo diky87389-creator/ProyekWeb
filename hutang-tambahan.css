@@ -1,0 +1,919 @@
+/* ============================================================
+   HUTANG — KALENDER TAGIHAN, PEMBAYARAN PER ITEM, TATA LETAK TOMBOL
+   Dimuat setelah hutang.css
+   ============================================================ */
+
+/* ---------- Panel Kalender ---------- */
+.calendar-panel {
+    margin: 0 0 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1.5rem;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.calendar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    padding: 1rem 1.25rem;
+    background: transparent;
+    border: 0;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.calendar-toggle:hover {
+    background: var(--surface-soft);
+}
+
+.calendar-toggle-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.calendar-icon {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.9rem;
+    background: var(--good-soft);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.calendar-toggle-title strong {
+    display: block;
+    font-size: 1rem;
+}
+
+.calendar-toggle-title small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.calendar-chevron {
+    color: var(--muted);
+    font-size: 1.1rem;
+    transition: transform 0.2s ease;
+}
+
+.calendar-toggle.is-collapsed .calendar-chevron {
+    transform: rotate(-90deg);
+}
+
+.calendar-body {
+    padding: 0 1.25rem 1.25rem;
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.calendar-nav h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    text-align: center;
+    flex: 1;
+}
+
+.calendar-nav-btn {
+    width: 2.3rem;
+    height: 2.3rem;
+    display: grid;
+    place-items: center;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--primary-strong);
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    cursor: pointer;
+}
+
+.calendar-nav-btn:hover {
+    background: var(--good-soft);
+}
+
+.calendar-weekdays,
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.3rem;
+}
+
+.calendar-weekdays {
+    margin-bottom: 0.3rem;
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.cal-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 60px;
+    padding: 0.3rem 0.15rem;
+    background: var(--surface-soft);
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
+    color: var(--text);
+    font: inherit;
+    cursor: default;
+}
+
+.cal-cell.is-blank {
+    background: transparent;
+}
+
+.cal-cell.has-data {
+    cursor: pointer;
+    background: #fff;
+    border-color: var(--border);
+}
+
+.cal-cell.has-data:hover {
+    background: var(--good-soft);
+    border-color: var(--accent);
+}
+
+.cal-cell.is-today {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+/* Akhir bulan: penanda khusus (28/29/30/31 mengikuti bulan) */
+.cal-cell.is-month-end {
+    background: #eff7ff;
+    border: 1px dashed #7aa7d9;
+}
+
+.cal-cell.is-month-end.has-data {
+    background: #e8f2ff;
+    border: 1px solid #7aa7d9;
+}
+
+.cal-day-number {
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.cal-month-end-tag {
+    margin-top: 0.05rem;
+    padding: 0 0.25rem;
+    color: #2a5f96;
+    background: #d9e9fb;
+    border-radius: 999px;
+    font-size: 0.5rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.cal-due-badge {
+    margin-top: 0.1rem;
+    padding: 0 0.22rem;
+    color: #fff;
+    background: var(--danger);
+    border-radius: 999px;
+    font-size: 0.46rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.cal-dots {
+    display: flex;
+    gap: 0.12rem;
+    margin-top: auto;
+    padding-top: 0.15rem;
+}
+
+.dot {
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+}
+
+.dot-unpaid {
+    background: #e0a11c;
+}
+
+.dot-paid {
+    background: #2e9e5b;
+}
+
+.dot-overdue {
+    background: var(--danger);
+}
+
+.dot-month-end {
+    background: #2a5f96;
+}
+
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+    margin-top: 0.7rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.calendar-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* ---------- Kartu Rekap Akhir Bulan ---------- */
+.month-end-card {
+    margin-top: 1rem;
+    padding: 1rem 1.1rem;
+    background: linear-gradient(135deg, #eff7ff, #f7fcff);
+    border: 1px solid #b7d3ee;
+    border-radius: 1rem;
+}
+
+.month-end-head {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.month-end-icon {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.8rem;
+    background: #dbeafd;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.month-end-label {
+    margin: 0;
+    color: #38618f;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.month-end-head h3 {
+    margin: 0.1rem 0 0;
+    font-size: 1rem;
+}
+
+.month-end-head h3 small {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.month-end-total {
+    margin: 0.75rem 0 0.15rem;
+    color: #1f4e79;
+    font-size: 1.7rem;
+    font-weight: 800;
+}
+
+.month-end-meta {
+    margin: 0 0 0.7rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.month-end-btn {
+    width: 100%;
+    min-height: 2.7rem;
+    color: #fff;
+    background: linear-gradient(135deg, #2a6fbf, #1f4e79);
+    border: 0;
+    border-radius: 0.8rem;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.month-end-btn:hover {
+    filter: brightness(1.07);
+}
+
+.month-end-note {
+    margin: 0.55rem 0 0;
+    color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.35;
+}
+
+.month-end-empty {
+    margin: 0.6rem 0 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+/* ---------- Detail tanggal di kalender ---------- */
+.calendar-day-detail {
+    margin-top: 0.9rem;
+    padding: 0.8rem 0.95rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+}
+
+.day-detail-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
+    border-bottom: 1px dashed var(--border);
+    font-size: 0.85rem;
+}
+
+.day-detail-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+/* ---------- Panel Pilih Item ---------- */
+.modal-wide {
+    max-width: 620px;
+    width: min(96vw, 620px);
+}
+
+.pay-intro {
+    margin: 0 0 0.9rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.45;
+}
+
+.pay-picker-list {
+    display: grid;
+    gap: 0.8rem;
+    max-height: 48vh;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+}
+
+.pick-group {
+    border: 1px solid var(--border);
+    border-radius: 0.85rem;
+    overflow: hidden;
+    background: #fff;
+}
+
+.pick-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0.65rem 0.8rem;
+    background: var(--surface-soft);
+    border-bottom: 1px solid var(--border);
+}
+
+.pick-group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    cursor: pointer;
+}
+
+.pick-group-toggle strong {
+    display: block;
+    font-size: 0.85rem;
+}
+
+.pick-group-toggle small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.7rem;
+}
+
+.pick-group-remaining {
+    color: var(--danger);
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pick-group-body {
+    padding: 0.35rem;
+}
+
+.pick-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.55rem;
+    border-radius: 0.6rem;
+    cursor: pointer;
+}
+
+.pick-item:hover {
+    background: var(--surface-soft);
+}
+
+.pick-item input[type="checkbox"] {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+}
+
+.pick-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.pick-item-name {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.pick-item-meta {
+    display: block;
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.pick-item-price {
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pick-item.is-shipping {
+    background: #f7fbff;
+    border: 1px dashed #b7d3ee;
+    margin-top: 0.3rem;
+}
+
+.pick-item.is-locked {
+    cursor: default;
+    opacity: 0.95;
+}
+
+.pick-item.is-locked:hover {
+    background: #f7fbff;
+}
+
+/* ---------- Keranjang Pembayaran ---------- */
+.pay-basket {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: 0.9rem;
+}
+
+.pay-basket-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+
+.pay-basket-row strong {
+    color: var(--primary-strong);
+    font-size: 1.3rem;
+}
+
+.pay-continue-btn {
+    width: 100%;
+    min-height: 2.9rem;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #2a6f43);
+    border: 0;
+    border-radius: 0.8rem;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.pay-continue-btn:disabled {
+    background: #c3d2c7;
+    cursor: not-allowed;
+}
+
+.pay-continue-btn:not(:disabled):hover {
+    filter: brightness(1.06);
+}
+
+.pay-confirm-summary {
+    margin-bottom: 1rem;
+}
+
+.confirm-group {
+    padding: 0.7rem 0.85rem;
+    margin-bottom: 0.6rem;
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: 0.8rem;
+}
+
+.confirm-group-title {
+    margin: 0 0 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.confirm-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.18rem 0;
+    font-size: 0.82rem;
+}
+
+.confirm-subtotal {
+    margin-top: 0.35rem;
+    padding-top: 0.4rem;
+    border-top: 1px dashed var(--border);
+}
+
+.confirm-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    background: var(--good-soft);
+    border: 1px solid var(--accent);
+    border-radius: 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.confirm-total strong {
+    font-size: 1.4rem;
+    color: var(--primary-strong);
+}
+
+.pay-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 0.6rem;
+    margin-top: 0.9rem;
+}
+
+.receipt-group {
+    margin-bottom: 0.7rem;
+}
+
+.receipt-group-title {
+    margin: 0 0 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* ---------- Tata letak tombol 3 tingkat ---------- */
+.debt-actions {
+    display: grid;
+    gap: 0.6rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.9rem;
+}
+
+.actions-primary {
+    display: block;
+}
+
+.btn-pay-main {
+    width: 100%;
+    min-height: 2.9rem;
+    padding: 0.6rem 1rem;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #2a6f43);
+    border: 0;
+    border-radius: 0.9rem;
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(59, 143, 88, 0.25);
+}
+
+.btn-pay-main:hover {
+    filter: brightness(1.06);
+}
+
+.actions-secondary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.actions-secondary .action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    width: 100%;
+    padding: 0.55rem 0.4rem;
+    font-size: 0.82rem;
+}
+
+.actions-danger {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.15rem;
+    border-top: 1px dashed var(--border);
+}
+
+.actions-danger .action-delete {
+    font-size: 0.78rem;
+}
+
+/* Badge menunggu verifikasi */
+.status-pending {
+    background: #fff4d9;
+    color: #8a5a00;
+    border: 1px solid #eacb7d;
+}
+
+.debt-partial {
+    color: var(--warn);
+    font-weight: 600;
+}
+
+/* ---------- Responsif ---------- */
+@media (max-width: 640px) {
+    .calendar-body {
+        padding: 0 0.85rem 1rem;
+    }
+
+    .cal-cell {
+        min-height: 50px;
+    }
+
+    .confirm-total strong {
+        font-size: 1.15rem;
+    }
+
+    .pay-confirm-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .actions-secondary .action-btn {
+        font-size: 0.76rem;
+    }
+
+    .modal-wide {
+        width: 96vw;
+    }
+}
+/* ============================================================
+   KARTU METODE PEMBAYARAN — modal Konfirmasi (hutang.html)
+   Desain seragam dengan checkout.html.
+   2 kolom desktop / 1 kolom mobile.
+   ============================================================ */
+
+.payment-methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+/* Kartu dasar, menimpa .method-card lama */
+.payment-methods .pay-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  width: 100%;
+  padding: 0.95rem 1rem;
+  background: #ffffff;
+  border: 1.5px solid #e4e9e5;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(16, 45, 28, 0.04);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease,
+              background-color 0.18s ease, transform 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.payment-methods .pay-card:hover {
+  border-color: #c3d5c8;
+  box-shadow: 0 4px 14px rgba(16, 45, 28, 0.08);
+  transform: translateY(-1px);
+}
+
+.payment-methods .pay-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.payment-methods .pay-card-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #f2f6f3;
+  color: #3c6b4a;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.payment-methods .pay-card-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.payment-methods .pay-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.payment-methods .pay-card-title {
+  font-size: 0.93rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #1f3826;
+}
+
+.payment-methods .pay-card-desc {
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: #6b7f70;
+}
+
+.payment-methods .pay-card-badge {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+  padding: 0.16rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.67rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #4c5c51;
+  background: #eef2ef;
+  white-space: nowrap;
+}
+
+.payment-methods .pay-card-badge--instant {
+  color: #1b5e8a;
+  background: #e6f2fb;
+  white-space: normal;
+}
+
+.payment-methods .pay-card-check {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary, #3b8f58);
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.payment-methods .pay-card-check svg {
+  width: 13px;
+  height: 13px;
+}
+
+.payment-methods .pay-card:has(input[type="radio"]:checked) .pay-card-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.payment-methods .pay-card:has(input[type="radio"]:focus-visible) {
+  outline: 3px solid rgba(59, 143, 88, 0.35);
+  outline-offset: 2px;
+}
+
+/* --- Aksen per metode --- */
+.payment-methods .pay-card--qris:has(input[type="radio"]:checked) {
+  border-color: #d94f4f;
+  background: linear-gradient(180deg, rgba(217, 79, 79, 0.07), rgba(217, 79, 79, 0.02));
+  box-shadow: 0 4px 14px rgba(217, 79, 79, 0.16);
+}
+
+.payment-methods .pay-card--qris:has(input[type="radio"]:checked) .pay-card-icon {
+  background: #fbe4e4;
+  color: #c0392b;
+}
+
+.payment-methods .pay-card--transfer:has(input[type="radio"]:checked) {
+  border-color: #2a6fbf;
+  background: linear-gradient(180deg, rgba(42, 111, 191, 0.07), rgba(42, 111, 191, 0.02));
+  box-shadow: 0 4px 14px rgba(42, 111, 191, 0.16);
+}
+
+.payment-methods .pay-card--transfer:has(input[type="radio"]:checked) .pay-card-icon {
+  background: #e0ecfa;
+  color: #1f4e79;
+}
+
+.payment-methods .pay-card--tunai:has(input[type="radio"]:checked) {
+  border-color: #3b8f58;
+  background: linear-gradient(180deg, rgba(59, 143, 88, 0.07), rgba(59, 143, 88, 0.02));
+  box-shadow: 0 4px 14px rgba(59, 143, 88, 0.16);
+}
+
+.payment-methods .pay-card--tunai:has(input[type="radio"]:checked) .pay-card-icon {
+  background: #dff2e5;
+  color: #2f7a49;
+}
+
+/* --- Catatan kepercayaan --- */
+.pay-trust-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  background: #f6f9f7;
+  border: 1px dashed #d5e3d9;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #5d7164;
+}
+
+.pay-trust-note span[aria-hidden="true"] {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  color: #3b8f58;
+}
+
+.pay-trust-note strong {
+  color: #2f5c3d;
+}
+
+/* --- Mobile: 1 kolom --- */
+@media (max-width: 640px) {
+  .payment-methods {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-methods .pay-card {
+    padding: 0.85rem 0.9rem;
+    gap: 0.7rem;
+  }
+
+  .payment-methods .pay-card-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .payment-methods .pay-card-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .payment-methods .pay-card-badge {
+    white-space: normal;
+  }
+}

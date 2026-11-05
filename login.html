@@ -28,6 +28,10 @@
             <label for="login-password">Kata Sandi</label>
             <input id="login-password" name="password" type="password" placeholder="Masukkan kata sandi" autocomplete="current-password" required />
 
+            <div class="login-forgot-row">
+              <button type="button" class="login-forgot" id="forgot-password-button">Lupa Kata Sandi?</button>
+            </div>
+
             <button class="button button-primary" type="submit">Masuk</button>
           </form>
         </div>
@@ -53,10 +57,39 @@
     </section>
 
     <div class="toast" id="login-toast"></div>
+
+    <!-- ============ POPUP LUPA KATA SANDI ============ -->
+    <div class="forgot-modal" id="forgot-modal" hidden role="dialog" aria-modal="true" aria-labelledby="forgot-title">
+      <div class="forgot-modal-card">
+        <button class="forgot-close" id="forgot-close" type="button" aria-label="Tutup">×</button>
+
+        <div class="forgot-head">
+          <div class="forgot-icon" aria-hidden="true">🔑</div>
+          <h2 id="forgot-title">Lupa Kata Sandi</h2>
+          <p class="forgot-sub">Masukkan email yang Anda gunakan saat mendaftar. Kami akan mengirim tautan untuk membuat kata sandi baru.</p>
+        </div>
+
+        <form id="forgot-form" autocomplete="off" novalidate>
+          <label class="forgot-label" for="forgot-email">Email</label>
+          <input class="forgot-input" id="forgot-email" type="email" placeholder="contoh@email.com" autocomplete="email" required />
+
+          <p class="forgot-message" id="forgot-message" hidden></p>
+
+          <div class="forgot-demo" id="forgot-demo" hidden>
+            <span class="forgot-demo-label">⚠️ Mode Demo — Email.js belum aktif</span>
+            <a class="forgot-demo-link" id="forgot-demo-link" href="#">Buka halaman reset kata sandi</a>
+          </div>
+
+          <button class="button button-primary forgot-submit" id="forgot-submit" type="submit">Kirim Tautan Reset</button>
+        </form>
+      </div>
+    </div>
   </main>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="storage-helper.js?v=20260928a"></script>
-  <script src="login.js?v=20260928a"></script>
+  <script src="auth-util.js"></script>
+  <script src="email-service.js"></script>
+  <script src="login.js?v=20260928b"></script>
 </body>
 </html>

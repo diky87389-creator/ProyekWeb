@@ -136,12 +136,17 @@ function statusLabel(status) {
 }
 
 function renderTabs(orders) {
-  const type = orders.length && deliveryType(orders[0]) === 'home' ? 'home' : 'pickup';
-  const tabs = [
-    ['dikemas', 'Dikemas'],
-    [type === 'home' ? 'dikirim' : 'siap_diambil', type === 'home' ? 'Dikirim' : 'Silahkan Untuk Diambil'],
-    ['selesai', 'Selesai']
-  ];
+  // Tab tahap kedua DIBENTUK dari metode pengiriman pesanan yang BENAR-BENAR
+  // ada, bukan hanya dari pesanan pertama. Bila terdapat pesanan antar rumah
+  // dan pesanan ambil di tempat, kedua tab harus tersedia agar pesanan tidak
+  // "hilang" dari tampilan dan tab tujuan pengalihan selalu valid.
+  const hasHome = orders.some((order) => deliveryType(order) === 'home');
+  const hasPickup = orders.some((order) => deliveryType(order) !== 'home');
+  const tabs = [['dikemas', 'Dikemas']];
+  if (hasHome || (!hasPickup && activeTab === 'dikirim')) tabs.push(['dikirim', 'Dikirim']);
+  if (hasPickup || (!hasHome && activeTab === 'siap_diambil')) tabs.push(['siap_diambil', 'Silahkan Untuk Diambil']);
+  if (!hasHome && !hasPickup) tabs.push(['siap_diambil', 'Silahkan Untuk Diambil']);
+  tabs.push(['selesai', 'Selesai']);
   orderTabs.innerHTML = tabs.map(([value, label]) => `<button class="order-tab${activeTab === value ? ' active' : ''}" type="button" role="tab" aria-selected="${activeTab === value}" data-tab="${value}">${label}</button>`).join('');
   if (!tabs.some(([value]) => value === activeTab)) activeTab = tabs[0][0];
   orderTabs.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
@@ -366,7 +371,8 @@ function renderOrders() {
       itemName.textContent = item.name;
 
       const itemDetails = document.createElement('span');
-      itemDetails.textContent = `${item.quantity} x ${formatPrice(item.price)} • ${item.unit}`;
+      const qtyTextO = typeof Satuan !== 'undefined' ? Satuan.format(item.quantity, item.unit) : (item.quantity + '\u0020' + item.unit);
+      itemDetails.textContent = qtyTextO + ' x ' + formatPrice(item.price);
 
       itemInfo.append(itemName, itemDetails);
 

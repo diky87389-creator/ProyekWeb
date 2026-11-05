@@ -8,20 +8,19 @@
 // Titipan TIDAK langsung menjadi kasbon; item yang habis tidak ditagihkan
 // dan pelanggan melihat pesan pemberitahuan di halaman Titip Beli.
 //
-// CATATAN ATURAN:
-//  - Tidak ada tombol "Hapus" permanen dan tidak ada tombol
-//    "Hapus pesanan untuk diarsipkan" di modul ini (sesuai permintaan).
-//  - Key kasbon (dikyHutang_*) tidak pernah disentuh modul ini; pembayaran
-//    titipan diselesaikan pelanggan sendiri saat checkout.
+// Arsip admin menyimpan titipan terminal tanpa menghapus salinan milik user.
+// Key kasbon (dikyHutang_*) tidak pernah disentuh modul ini.
 
 (function () {
   var Helper = window.TitipHelper;
 
   var requests = [];
+  var archiveMode = false;
   var list = document.getElementById('titip-list');
   var dialog = document.getElementById('detail-dialog');
   var searchInput = document.getElementById('search-titipan');
   var statusFilter = document.getElementById('status-filter');
+  var archiveButton = document.getElementById('archive-button');
 
   function esc(value) { return Helper.escapeHTML(value); }
   function money(value) { return Helper.money(value); }
@@ -78,17 +77,41 @@
   // (dikyRegisteredUsers, foto yang diperbarui di profile.html) setiap kali
   // kartu dirender, sehingga selalu sinkron dengan foto profil terbaru.
   function resolvePelangganFoto(request) {
+    if (!request) return null;
+    if (request.profileImage || request.avatarUrl) {
+      return request.profileImage || request.avatarUrl;
+    }
     try {
       var users = JSON.parse(localStorage.getItem('dikyRegisteredUsers') || '[]');
-      if (!Array.isArray(users)) return null;
-      var matched = users.find(function (candidate) {
-        if (!candidate) return false;
-        if (request.userId && String(candidate.id) === String(request.userId)) return true;
-        if (request.username && String(candidate.username || '').toLowerCase() === String(request.username).toLowerCase()) return true;
-        return false;
-      });
-      if (matched) return matched.profileImage || matched.avatarUrl || null;
+      if (Array.isArray(users)) {
+        var matched = users.find(function (candidate) {
+          if (!candidate) return false;
+          if (request.userId && String(candidate.id) === String(request.userId)) return true;
+          if (request.username && String(candidate.username || '').toLowerCase() === String(request.username).toLowerCase()) return true;
+          return false;
+        });
+        if (matched && (matched.profileImage || matched.avatarUrl)) {
+          return matched.profileImage || matched.avatarUrl;
+        }
+      }
     } catch (error) { /* abaikan */ }
+
+    // Jika user telah melakukan Logout Bersih Total, ambil foto dari arsip identitas yang dipertahankan
+    try {
+      var used = JSON.parse(localStorage.getItem('dikyUsedIdentities') || '[]');
+      if (Array.isArray(used)) {
+        var matchedUsed = used.find(function (candidate) {
+          if (!candidate) return false;
+          if (request.userId && String(candidate.userId) === String(request.userId)) return true;
+          if (request.username && String(candidate.username || '').toLowerCase() === String(request.username).toLowerCase()) return true;
+          return false;
+        });
+        if (matchedUsed && (matchedUsed.profileImage || matchedUsed.avatarUrl)) {
+          return matchedUsed.profileImage || matchedUsed.avatarUrl;
+        }
+      }
+    } catch (error) { /* abaikan */ }
+
     return null;
   }
 
@@ -106,6 +129,10 @@
     var habisMsg = Helper.pesanHabisDiPasar(request);
     var total = Helper.computeDitagihkan(request.items);
     var ownerId = ownerIdOf(request);
+    var orderStatus = cariStatusPesanan(request.id);
+    var canArchive = ['selesai', 'dibatalkan', 'habis_di_pasaran'].indexOf(String(request.status).toLowerCase()) !== -1 ||
+      ['selesai', 'dibatalkan'].indexOf(String(orderStatus || '').toLowerCase()) !== -1;
+
     return '<article class="titip-card" data-titip-id="' + esc(request.id) + '">' +
       '<div class="titip-top"><div>' +
       '<p class="titip-id">' + esc(request.id || 'Tanpa ID') + '</p>' +
@@ -120,45 +147,48 @@
       '<div class="actions">' +
       '<button class="action" type="button" data-detail-id="' + esc(request.id) + '">Lihat Detail</button>' +
       (canFinalize ? '<button class="action finalize" type="button" data-finalize-id="' + esc(request.id) + '">✅ Kirim ke Checkout Pelanggan</button>' : '') +
+      (canArchive ? '<button class="action archive-action" type="button" data-archive-id="' + esc(request.id) + '" title="Sembunyikan dari daftar utama dan simpan di Arsip Admin (tidak mempengaruhi data pelanggan)">Hapus pesanan untuk diarsipkan</button>' : '') +
       '</div></div>' +
       '</article>';
   }
 
   function itemMarkup(request, item) {
-    var isDibeli = String(item.status) === 'dibeli';
     var isHabis = String(item.status) === 'habis_dipasar';
     // Setelah finalisasi / checkout, item tidak bisa diubah lagi dari panel ini.
-    var locked = ['siap_checkout', 'sudah_checkout', 'selesai', 'dibatalkan'].indexOf(String(request.status)) !== -1;
-    var btnClass = isDibeli ? 'is-dibeli' : (isHabis ? 'is-habis' : 'is-diminta');
-    var btnLabel = isDibeli ? '✓ Dibeli' : (isHabis ? '✕ Habis di Pasar' : 'Tandai');
+    var locked = ['siap_checkout', 'sudah_checkout', 'selesai', 'dibatalkan', 'habis_di_pasaran'].indexOf(String(request.status)) !== -1;
+    var btnClass = isHabis ? 'is-diminta' : 'is-habis';
     var controls = locked ? '' :
-      '<input type="number" min="0" step="1" placeholder="Harga pasar" value="' + (Number(item.hargaPasar) > 0 ? Number(item.hargaPasar) : '') + '" data-price-id="' + esc(item.id) + '" aria-label="Harga pasar ' + esc(item.name) + '">' +
-      '<button class="toggle-btn ' + btnClass + '" type="button" data-toggle-id="' + esc(item.id) + '" data-request-id="' + esc(request.id) + '">' + esc(btnLabel) + '</button>';
+      (isHabis ? '' : '<input type="number" min="1" step="1" placeholder="Harga pasar" value="' + (Number(item.hargaPasar) > 0 ? Number(item.hargaPasar) : '') + '" data-price-id="' + esc(item.id) + '" aria-label="Harga pasar ' + esc(item.name) + '">') +
+      '<button class="toggle-btn ' + btnClass + '" type="button" data-toggle-id="' + esc(item.id) + '" data-request-id="' + esc(request.id) + '">' + esc(isHabis ? '↺ Tersedia lagi' : '✕ Habis di Pasar') + '</button>';
     return '<div class="item" data-item-id="' + esc(item.id) + '">' +
       '<img src="' + esc(Helper.resolveProductImage(item)) + '" alt="' + esc(item.name) + '">' +
       '<div class="item-info"><p class="item-name">' + esc(item.name) + '</p>' +
-      '<p class="item-meta">' + esc(item.qty) + ' × ' + esc(item.unit || 'satuan menyesuaikan') + ' · ' + esc(Helper.itemStatusLabel(item.status)) + '</p></div>' +
+      '<p class="item-meta">' + esc(typeof Satuan !== 'undefined' ? Satuan.format(item.qty, item.unit) : (item.qty + ' × ' + (item.unit || 'satuan menyesuaikan'))) + ' · ' + esc(Helper.itemStatusLabel(item.status)) + '</p></div>' +
       '<div class="item-controls">' + controls + '</div></div>';
   }
 
   // Status pesanan yang terkait titipan (setelah pelanggan checkout).
   function cariStatusPesanan(titipanId) {
     if (!titipanId) return null;
+    var foundStatus = null;
     try {
       for (var i = 0; i < localStorage.length; i += 1) {
         var key = localStorage.key(i);
-        if (!key || key.indexOf('dikyOrders_') !== 0) continue;
+        if (!key || (key.indexOf('dikyOrders_') !== 0 && key !== 'dikyArchivedOrders')) continue;
         var parsed = JSON.parse(localStorage.getItem(key) || '[]');
         var entries = Array.isArray(parsed) ? parsed : [];
         for (var j = 0; j < entries.length; j += 1) {
           if (entries[j] && String(entries[j].titipanId) === String(titipanId)) {
-            return String(entries[j].status || 'menunggu');
+            var status = String(entries[j].status || 'menunggu').toLowerCase();
+            if (status === 'selesai' || status === 'dibatalkan') return status;
+            foundStatus = status;
           }
         }
       }
     } catch (error) { /* abaikan */ }
-    return null;
+    return foundStatus;
   }
+  window.getTitipOrderStatusAdmin = cariStatusPesanan;
 
   function requestStatusText(request) {
     if (String(request.status) === 'sudah_checkout') {
@@ -177,13 +207,12 @@
     return (request.items || []).find(function (item) { return String(item.id) === String(itemId); });
   }
 
-  // Siklus status item: diminta -> dibeli -> habis_dipasar -> diminta ...
+  // Harga positif menandai item dibeli; tombol menandai habis atau tersedia lagi.
   function toggleItemStatus(request, item) {
     if (!request || !item) return;
-    var next = String(item.status) === 'diminta' ? 'dibeli'
-      : (String(item.status) === 'dibeli' ? 'habis_dipasar' : 'diminta');
+    var next = String(item.status) === 'habis_dipasar' ? 'diminta' : 'habis_dipasar';
     item.status = next;
-    if (next !== 'dibeli') item.hargaPasar = 0;
+    item.hargaPasar = 0;
     refreshRequestStatus(request);
     persist(request);
     render();
@@ -201,7 +230,7 @@
 
   // Status permintaan diturunkan dari status item.
   function refreshRequestStatus(request) {
-    if (['selesai', 'dibatalkan', 'siap_checkout', 'sudah_checkout'].indexOf(String(request.status)) !== -1) return;
+    if (['selesai', 'dibatalkan', 'habis_di_pasaran', 'siap_checkout', 'sudah_checkout'].indexOf(String(request.status)) !== -1) return;
     var counts = Helper.countByStatus(request.items);
     // Ada item habis di pasar (sebagian atau seluruhnya) -> 'sebagian_habis'.
     if (counts.habis_dipasar > 0) request.status = 'sebagian_habis';
@@ -225,10 +254,35 @@
   function finalize(request) {
     if (!request) return;
     var counts = Helper.countByStatus(request.items);
-    if (counts.dibeli === 0) {
-      window.alert('Belum ada item yang ditandai "Dibeli". Tandai minimal satu item beserta harga pasar sebelum finalisasi.');
+    var items = Array.isArray(request.items) ? request.items : [];
+    var unprocessedItems = items.filter(function (item) { return String(item.status) === 'diminta'; });
+    if (unprocessedItems.length) {
+      window.alert('Tandai setiap item sebagai dibeli dengan mengisi harga pasar, atau tandai "Habis di Pasar" sebelum mengirim titipan ke pelanggan.');
       return;
     }
+    var missingPriceItems = items.filter(function (item) {
+      return String(item.status) === 'dibeli' && !(Number(item.hargaPasar) > 0);
+    });
+    if (missingPriceItems.length) {
+      window.alert('Isi harga pasar untuk item yang dibeli, atau tandai item tersebut "Habis di Pasar". Item yang habis tidak memerlukan harga.');
+      return;
+    }
+
+    if (counts.dibeli === 0) {
+      if (!items.length || counts.habis_dipasar !== items.length) {
+        window.alert('Tidak ada item yang dapat dikirim. Pastikan setiap item sudah ditandai dibeli atau habis di pasar.');
+        return;
+      }
+      var unavailableMessage = 'Semua produk pada titipan ' + request.id + ' ditandai habis di pasar. Pelanggan akan diberi tahu dan tidak akan menerima tombol Checkout.';
+      if (!window.confirm(unavailableMessage + '\n\nKirim pemberitahuan kepada pelanggan?')) return;
+      request.status = 'habis_di_pasaran';
+      request.finalizedAt = new Date().toISOString();
+      if (!persist(request)) return;
+      render();
+      window.alert('Pemberitahuan produk habis berhasil dikirim kepada pelanggan. Titipan ini tidak dapat di-checkout.');
+      return;
+    }
+
     var total = Helper.computeDitagihkan(request.items);
     var habisCount = counts.habis_dipasar;
     var message = 'Kirim titipan ' + request.id + ' ke pelanggan untuk checkout?\n\n' +
@@ -240,10 +294,7 @@
 
     request.status = 'siap_checkout';
     request.finalizedAt = new Date().toISOString();
-    if (!persist(request)) {
-      window.alert('Perubahan titipan tidak dapat disimpan karena penyimpanan browser penuh.');
-      return;
-    }
+    if (!persist(request)) return;
     render();
     window.alert('Titipan dikirim ke pelanggan untuk checkout. ' +
       (habisCount ? (habisCount + ' item ditandai habis di pasar dan tidak ditagihkan.') : 'Semua item berhasil dibelikan.'));
@@ -266,7 +317,7 @@
       '<p><strong>Status:</strong> ' + esc(requestStatusText(request)) + '</p>' +
       '<p><strong>Total ditagihkan:</strong> ' + money(Helper.computeDitagihkan(request.items)) + '</p>' +
       '<ul class="detail-items">' + (request.items || []).map(function (item) {
-        return '<li>' + esc(item.name) + ' × ' + esc(item.qty) + ' — ' + esc(Helper.itemStatusLabel(item.status)) +
+        return '<li>' + esc(item.name) + ' × ' + esc(typeof Satuan !== 'undefined' ? Satuan.format(item.qty, item.unit) : item.qty) + ' — ' + esc(Helper.itemStatusLabel(item.status)) +
           (String(item.status) === 'dibeli' ? ' (' + money(item.hargaPasar) + ')' : '') + '</li>';
       }).join('') + '</ul>' +
       (Helper.pesanHabisDiPasar(request) ? '<p class="notice notice-habis">⚠️ ' + esc(Helper.pesanHabisDiPasar(request)) + '</p>' : '') +
@@ -311,3 +362,199 @@
   window.addEventListener('storage', load);
   document.addEventListener('DOMContentLoaded', load);
 }());
+
+// --- Modul Arsip & Hapus Permanen Admin Titip ---
+(function () {
+  // Ditambahkan secara modular
+})();
+
+// ============================================================
+// SISTEM PENYIMPANAN ARSIP & HAPUS PERMANEN (ADMIN-TITIP)
+// ============================================================
+(function (window, document) {
+  'use strict';
+
+  var Helper = window.TitipHelper;
+  if (!Helper) return;
+
+  var archiveMode = false;
+  var archiveButton = document.getElementById('archive-button');
+  var titipList = document.getElementById('titip-list');
+  var titipSummary = document.getElementById('titip-summary');
+  var searchInput = document.getElementById('search-titipan');
+  var statusFilter = document.getElementById('status-filter');
+
+  function esc(val) { return Helper.escapeHTML(val); }
+  function money(val) { return Helper.money(val); }
+
+  function updateArchiveButton() {
+    if (!archiveButton) return;
+    var count = Helper.readArchive().length;
+    archiveButton.textContent = archiveMode ? '← Kembali ke Daftar Titipan' : '⧉ Arsip Titipan (' + count + ')';
+    if (archiveMode) {
+      archiveButton.classList.remove('button-light');
+      archiveButton.classList.add('button-primary');
+    } else {
+      archiveButton.classList.remove('button-primary');
+      archiveButton.classList.add('button-light');
+    }
+  }
+
+  function renderArchiveView() {
+    var archive = Helper.readArchive();
+    var query = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+    var visible = archive.filter(function (entry) {
+      var itemNames = (entry.items || []).map(function (it) { return it.name; }).join(' ');
+      var text = [entry.id, entry.customerName, entry.username, itemNames].join(' ').toLowerCase();
+      return !query || text.indexOf(query) !== -1;
+    });
+
+    if (titipSummary) {
+      titipSummary.textContent = 'PENYIMPANAN ARSIP ADMIN — ' + visible.length + ' titipan diarsipkan. Titipan di sini disembunyikan dari daftar utama (tidak mempengaruhi riwayat pelanggan).';
+    }
+
+    if (!visible.length) {
+      titipList.innerHTML = '<div class="empty">Penyimpanan arsip kosong. Titipan yang telah selesai atau dibatalkan dapat diarsipkan dari daftar utama.</div>';
+      return;
+    }
+
+    titipList.innerHTML = visible.map(function (request) {
+      var total = Helper.computeDitagihkan(request.items);
+      var itemsHtml = (request.items || []).map(function (item) {
+        return '<div class="item" data-item-id="' + esc(item.id) + '">' +
+          '<img src="' + esc(Helper.resolveProductImage(item)) + '" alt="' + esc(item.name) + '">' +
+          '<div class="item-info"><p class="item-name">' + esc(item.name) + '</p>' +
+          '<p class="item-meta">' + esc(typeof Satuan !== 'undefined' ? Satuan.format(item.qty, item.unit) : (item.qty + ' × ' + (item.unit || 'satuan'))) + ' · ' + esc(Helper.itemStatusLabel(item.status)) +
+          (Number(item.hargaPasar) > 0 ? ' (' + money(item.hargaPasar) + ')' : '') + '</p></div>' +
+          '</div>';
+      }).join('');
+
+      return '<article class="titip-card is-archived" data-titip-id="' + esc(request.id) + '">' +
+        '<div class="archived-banner">⧉ Titipan Diarsipkan' + (request.archivedAt ? ' — ' + esc(Helper.formatWaktu(request.archivedAt)) : '') + '</div>' +
+        '<div class="titip-top"><div>' +
+        '<p class="titip-id">' + esc(request.id || 'Tanpa ID') + '</p>' +
+        '<p class="titip-name">' + esc(request.customerName || 'Pelanggan') + '</p>' +
+        '<p class="titip-meta">Akun: @' + esc(request.username || '-') + (request.userId ? ' · ID: ' + esc(request.userId) : '') + '</p>' +
+        '<p class="titip-meta">Dikirim: ' + esc(Helper.formatWaktu(request.createdAt)) + ' · Untuk pasar: ' + esc(Helper.formatTanggal(request.untukTanggal)) + '</p>' +
+        '</div><span class="status-pill status-' + esc(request.status) + '">' + esc(Helper.requestStatusLabel(request.status)) + '</span></div>' +
+        '<div class="items">' + itemsHtml + '</div>' +
+        '<div class="titip-bottom"><strong class="total">Total: ' + money(total) + '</strong>' +
+        '<div class="actions">' +
+        '<button class="action" type="button" data-detail-id="' + esc(request.id) + '">Lihat Detail</button>' +
+        '<button class="action danger" type="button" data-delete-permanent-id="' + esc(request.id) + '" title="Hapus permanen dari arsip admin (data milik pelanggan tidak terpengaruh)">Hapus</button>' +
+        '</div></div>' +
+        '</article>';
+    }).join('');
+  }
+
+  // Aksi mengarsipkan: menyembunyikan pesanan ke arsip admin
+  function handleArchiveRequest(requestId) {
+    var all = Helper.readAllTitipanAdmin();
+    var target = all.find(function (r) { return String(r.id) === String(requestId); });
+    if (!target) return;
+
+    var orderStatus = window.getTitipOrderStatusAdmin(requestId);
+    var requestStatus = String(target.status || '').toLowerCase();
+    if (['selesai', 'dibatalkan', 'habis_di_pasaran'].indexOf(requestStatus) === -1 &&
+      ['selesai', 'dibatalkan'].indexOf(String(orderStatus || '').toLowerCase()) === -1) {
+      window.alert('Titipan hanya dapat diarsipkan jika statusnya Selesai, Dibatalkan, atau semua produk habis di pasar.');
+      return;
+    }
+
+    var confirmMsg = 'Hapus pesanan titipan ' + String(target.id).toUpperCase() + ' dari daftar utama untuk diarsipkan?\n\n' +
+      'Data titipan akan DISIMPAN & DISEMBUNYIKAN di dalam Penyimpanan Arsip Admin.\n' +
+      'Riwayat daftar produk titipan milik pelanggan di titip.html TIDAK TERPENGARUH.';
+    if (!window.confirm(confirmMsg)) return;
+
+    if (String(orderStatus || '').toLowerCase() === 'dibatalkan' && requestStatus !== 'dibatalkan') {
+      target.status = 'dibatalkan';
+      target.statusUpdatedAt = new Date().toISOString();
+      target.catatanStatus = 'Pesanan checkout dibatalkan oleh admin.';
+      if (!Helper.saveTitipanAdmin(target)) {
+        window.alert('Status pembatalan titipan tidak dapat disimpan. Titipan belum diarsipkan.');
+        return;
+      }
+    }
+
+    var ok = Helper.arsipkanTitipanAdmin(target);
+    if (ok) {
+      updateArchiveButton();
+      // Muat ulang daftar aktif
+      var refreshBtn = document.getElementById('refresh-button');
+      if (refreshBtn) refreshBtn.click();
+      window.alert('Titipan berhasil disembunyikan dan disimpan di dalam Arsip Admin.');
+    } else {
+      window.alert('Gagal mengarsipkan titipan.');
+    }
+  }
+
+  // Aksi hapus permanen: HANYA ada di dalam Penyimpanan Arsip Admin
+  function handleDeletePermanent(requestId) {
+    if (!requestId) return;
+    var confirmMsg = 'Apakah Anda yakin ingin menghapus data titipan ' + String(requestId).toUpperCase() + ' secara PERMANEN dari Arsip Admin?\n\n' +
+      'Tindakan ini tidak dapat dibatalkan.\n' +
+      'Data riwayat daftar produk milik pelanggan di titip.html TETAP UTUH dan TIDAK TERPENGARUH.';
+    if (!window.confirm(confirmMsg)) return;
+
+    var ok = Helper.hapusPermanenArsipAdmin(requestId);
+    if (ok) {
+      updateArchiveButton();
+      renderArchiveView();
+      window.alert('Data titipan berhasil dihapus secara PERMANEN dari Arsip Admin.');
+    } else {
+      window.alert('Gagal menghapus titipan dari arsip.');
+    }
+  }
+
+  function toggleArchiveMode() {
+    archiveMode = !archiveMode;
+    updateArchiveButton();
+    if (statusFilter) statusFilter.disabled = archiveMode;
+
+    if (archiveMode) {
+      renderArchiveView();
+    } else {
+      var refreshBtn = document.getElementById('refresh-button');
+      if (refreshBtn) refreshBtn.click();
+    }
+  }
+
+  if (archiveButton) {
+    archiveButton.addEventListener('click', toggleArchiveMode);
+  }
+
+  if (titipList) {
+    titipList.addEventListener('click', function (event) {
+      var archiveBtn = event.target.closest('[data-archive-id]');
+      if (archiveBtn) {
+        event.stopPropagation();
+        handleArchiveRequest(archiveBtn.dataset.archiveId);
+        return;
+      }
+
+      var permDeleteBtn = event.target.closest('[data-delete-permanent-id]');
+      if (permDeleteBtn) {
+        event.stopPropagation();
+        handleDeletePermanent(permDeleteBtn.dataset.deletePermanentId);
+        return;
+      }
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      if (archiveMode) renderArchiveView();
+    });
+  }
+
+  window.addEventListener('storage', function (e) {
+    if (e.key === Helper.ARCHIVE_KEY) {
+      updateArchiveButton();
+      if (archiveMode) renderArchiveView();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', updateArchiveButton);
+  window.setTimeout(updateArchiveButton, 200);
+})(window, document);

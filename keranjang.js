@@ -159,7 +159,24 @@ function handleQuantityChange(cartItemId, delta) {
   const item = cart.find((entry) => entry.cartItemId === cartItemId);
   if (!item) return;
 
-  item.quantity = Math.max(1, item.quantity + delta);
+  // Langkah & batas mengikuti satuan: kg/ons 0,5 ; lainnya 1.
+  if (typeof window.Satuan !== 'undefined') {
+    item.quantity = window.Satuan.geser(item.quantity, delta, item.unit);
+  } else {
+    item.quantity = Math.max(1, item.quantity + delta);
+  }
+  saveCart(cart);
+}
+
+/** Chip cepat: set kuantitas langsung. */
+function handleQuantitySet(cartItemId, nilai) {
+  const cart = getCart();
+  const item = cart.find((entry) => entry.cartItemId === cartItemId);
+  if (!item) return;
+
+  item.quantity = typeof window.Satuan !== 'undefined'
+    ? window.Satuan.sesuaikan(nilai, item.unit)
+    : Math.max(1, Number(nilai) || 1);
   saveCart(cart);
 }
 
@@ -182,8 +199,13 @@ function handleUnitChange(cartItemId, newUnitIndex) {
   // Check if the new unit combination already exists in cart
   const existingItem = cart.find((entry) => entry.cartItemId === newCartItemId);
   if (existingItem) {
-    // Merge quantities if exists
-    existingItem.quantity += item.quantity;
+    // Merge quantities if exists — sesuaikan dulu ke langkah satuan baru
+    const tambahan = typeof window.Satuan !== 'undefined'
+      ? window.Satuan.sesuaikan(item.quantity, newUnit.name)
+      : item.quantity;
+    existingItem.quantity = typeof window.Satuan !== 'undefined'
+      ? window.Satuan.sesuaikan(existingItem.quantity + tambahan, existingItem.unit)
+      : existingItem.quantity + tambahan;
     // Remove old item
     const index = cart.findIndex((entry) => entry.cartItemId === cartItemId);
     if (index > -1) {
@@ -195,6 +217,12 @@ function handleUnitChange(cartItemId, newUnitIndex) {
     item.unit = newUnit.name;
     item.price = newUnit.price;
     item.unitIndex = newUnitIndex;
+    // KUNCI: sesuaikan kuantitas ke langkah & batas satuan BARU.
+    // ½ kg -> pindah ke per buah harus menjadi 1 buah (bukan ½ buah),
+    // karena per buah tidak mendukung pecahan.
+    if (typeof window.Satuan !== 'undefined') {
+      item.quantity = window.Satuan.sesuaikan(item.quantity, item.unit);
+    }
   }
 
   saveCart(cart);
@@ -308,15 +336,25 @@ function createCartItemElement(item) {
   decreaseButton.dataset.action = 'decrease';
   decreaseButton.dataset.id = item.cartItemId;
   decreaseButton.textContent = '-';
+  // Disabled bila sudah di batas minimum satuan.
+  if (typeof window.Satuan !== 'undefined' && !window.Satuan.bisaKurang(item.quantity, item.unit)) {
+    decreaseButton.disabled = true;
+  }
 
   const quantityValue = document.createElement('span');
-  quantityValue.textContent = item.quantity;
+  quantityValue.className = 'quantity-value';
+  quantityValue.textContent = typeof window.Satuan !== 'undefined'
+    ? window.Satuan.format(item.quantity, item.unit)
+    : item.quantity;
 
   const increaseButton = document.createElement('button');
   increaseButton.type = 'button';
   increaseButton.dataset.action = 'increase';
   increaseButton.dataset.id = item.cartItemId;
   increaseButton.textContent = '+';
+  if (typeof window.Satuan !== 'undefined' && !window.Satuan.bisaTambah(item.quantity, item.unit)) {
+    increaseButton.disabled = true;
+  }
 
   quantityPicker.append(decreaseButton, quantityValue, increaseButton);
 
@@ -327,7 +365,24 @@ function createCartItemElement(item) {
   removeButton.dataset.id = item.cartItemId;
   removeButton.textContent = 'Hapus';
 
-  itemControls.append(quantityPicker, removeButton);
+  // Chip cepat: satu klik untuk jumlah yang biasa dibeli.
+  const chipsRow = document.createElement('div');
+  chipsRow.className = 'quantity-chips';
+  if (typeof window.Satuan !== 'undefined') {
+    window.Satuan.chips(item.unit).forEach((nilai) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'quantity-chip';
+      chip.dataset.action = 'set-quantity';
+      chip.dataset.id = item.cartItemId;
+      chip.dataset.value = String(nilai);
+      chip.textContent = window.Satuan.format(nilai, item.unit);
+      if (Math.abs(Number(item.quantity) - nilai) < 1e-9) chip.classList.add('is-active');
+      chipsRow.append(chip);
+    });
+  }
+
+  itemControls.append(quantityPicker, chipsRow, removeButton);
   itemContent.append(itemDescription, itemControls);
 
   const priceBlock = document.createElement('div');
@@ -367,6 +422,8 @@ function renderCart() {
         handleQuantityChange(cartItemId, 1);
       } else if (action === 'decrease') {
         handleQuantityChange(cartItemId, -1);
+      } else if (action === 'set-quantity') {
+        handleQuantitySet(cartItemId, Number(button.dataset.value));
       } else if (action === 'remove') {
         handleItemRemove(cartItemId);
       }
@@ -402,7 +459,8 @@ function renderModalItems(cart) {
     modalItemMeta.className = 'modal-item-meta';
 
     const quantityMeta = document.createElement('span');
-    quantityMeta.textContent = `${item.quantity} x ${formatPrice(item.price)}`;
+    const qtyText = typeof window.Satuan !== 'undefined' ? window.Satuan.formatAngka(item.quantity) : item.quantity;
+    quantityMeta.textContent = `${qtyText} x ${formatPrice(item.price)}`;
 
     const unitMeta = document.createElement('span');
     unitMeta.textContent = item.unit;

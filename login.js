@@ -139,6 +139,11 @@ function buildSession(user, extra = {}) {
     gender: user.gender || null,
     birthDate: user.birthDate || null,
     address: user.address || null,
+    // Koordinat alamat WAJIB ikut sesi. Tanpa ini, ongkir berbasis jarak
+    // di checkout.html jatuh ke tarif flat setiap kali pengguna login ulang
+    // (misal setelah Logout Cepat), padahal alamat sudah terdaftar.
+    latitude: Number.isFinite(Number(user.latitude)) && user.latitude !== null && user.latitude !== '' ? Number(user.latitude) : null,
+    longitude: Number.isFinite(Number(user.longitude)) && user.longitude !== null && user.longitude !== '' ? Number(user.longitude) : null,
     authProvider: user.authProvider || 'email',
     loggedAt: new Date().toISOString(),
     ...extra
@@ -161,7 +166,7 @@ function redirectToRegister(profile) {
   }, 1500);
 }
 
-function handleLogin(event) {
+async function handleLogin(event) {
   event.preventDefault();
   const emailAddress = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
@@ -194,9 +199,32 @@ function handleLogin(event) {
       showToast('Email belum terdaftar.');
       return;
     }
-    if (user.password !== password) {
+    // Verifikasi kata sandi: mendukung hash SHA-256 maupun data lama (plain).
+    let cocok = false;
+    if (window.AuthUtil && typeof window.AuthUtil.cocok === 'function') {
+      cocok = await window.AuthUtil.cocok(password, user.password);
+    } else {
+      cocok = user.password === password;
+    }
+    if (!cocok) {
       showToast('Kata sandi salah. Silakan coba lagi.');
       return;
+    }
+
+    // Migrasi otomatis: bila masih plain text, ubah ke hash sekarang.
+    if (window.AuthUtil && typeof window.AuthUtil.sudahHash === 'function' && !window.AuthUtil.sudahHash(user.password)) {
+      try {
+        const hashBaru = await window.AuthUtil.hashPassword(password);
+        if (hashBaru) {
+          const daftar = getRegisteredUsers();
+          const idx = daftar.findIndex((u) => String(u.id) === String(user.id));
+          if (idx >= 0) {
+            daftar[idx].password = hashBaru;
+            saveRegisteredUsers(daftar);
+            user.password = hashBaru;
+          }
+        }
+      } catch (e) { }
     }
     user.role = user.role === 'admin' ? 'admin' : 'user';
   }
@@ -340,3 +368,200 @@ window.addEventListener('DOMContentLoaded', () => {
 
 loginForm.addEventListener('submit', handleLogin);
 googleLoginButton.addEventListener('click', handleGoogleSignUpClick);
+/* ============================================================
+   LUPA KATA SANDI — alur reset via tautan email
+   ============================================================
+   Anti-enumeration: pesan SELALU sama, baik email terdaftar
+   maupun tidak. Ini mencegah orang luar menebak email mana
+   yang terdaftar di sistem.
+   ============================================================ */
+(function (window, document) {
+  'use strict';
+
+  var KUNCI_RESET = 'dikyResetTokens';
+  var MASA_BERLAKU_MS = 30 * 60 * 1000; // 30 menit
+
+  function el(id) { return document.getElementById(id); }
+
+  function tampilkanPesan(teks, jenis) {
+    var box = el('forgot-message');
+    if (!box) return;
+    box.textContent = teks || '';
+    box.className = 'forgot-message' + (jenis ? ' is-' + jenis : '');
+    box.hidden = !teks;
+  }
+
+  function bacaTokens() {
+    try {
+      var raw = localStorage.getItem(KUNCI_RESET);
+      var data = raw ? JSON.parse(raw) : [];
+      return Array.isArray(data) ? data : [];
+    } catch (e) { return []; }
+  }
+
+  function simpanTokens(list) {
+    try {
+      localStorage.setItem(KUNCI_RESET, JSON.stringify(list));
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /** Bersihkan token yang sudah kedaluwarsa. */
+  function bersihkanTokenKedaluwarsa(list) {
+    var sekarang = Date.now();
+    return list.filter(function (t) { return t && t.expiresAt && t.expiresAt > sekarang; });
+  }
+
+  function buatTautan(token, email) {
+    var base = window.location.href.replace(/[^\/]*$/, '');
+    return base + 'reset-password.html?token=' + encodeURIComponent(token) + '&email=' + encodeURIComponent(email);
+  }
+
+  function bukaModal() {
+    var modal = el('forgot-modal');
+    if (!modal) return;
+    modal.hidden = false;
+    document.body.classList.add('modal-open');
+
+    // Isi otomatis email dari kolom login bila sudah diketik
+    var loginEmail = el('login-email');
+    var forgotEmail = el('forgot-email');
+    if (loginEmail && forgotEmail && !forgotEmail.value && loginEmail.value.trim()) {
+      forgotEmail.value = loginEmail.value.trim();
+    }
+
+    tampilkanPesan('', '');
+    var demo = el('forgot-demo');
+    if (demo) demo.hidden = true;
+
+    setTimeout(function () { if (forgotEmail) forgotEmail.focus(); }, 60);
+  }
+
+  function tutupModal() {
+    var modal = el('forgot-modal');
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('modal-open');
+  }
+
+  async function kirimTautan(event) {
+    if (event) event.preventDefault();
+
+    var inputEmail = el('forgot-email');
+    var tombol = el('forgot-submit');
+    var email = inputEmail ? String(inputEmail.value || '').trim().toLowerCase() : '';
+
+    if (!email || email.indexOf('@') === -1) {
+      tampilkanPesan('Masukkan alamat email yang valid.', 'error');
+      return;
+    }
+
+    if (tombol) { tombol.disabled = true; tombol.textContent = 'Mengirim...'; }
+    tampilkanPesan('Memproses permintaan...', 'info');
+
+    // Wajib cocok dengan email yang BENAR-BENAR terdaftar saat pendaftaran.
+    // Gunakan findUserByEmail() agar konsisten dengan alur login, termasuk
+    // email yang tersimpan di contactInfo.
+    var user = typeof findUserByEmail === 'function' ? findUserByEmail(email) : null;
+    if (!user) {
+      var daftarUser = typeof getRegisteredUsers === 'function' ? getRegisteredUsers() : [];
+      user = daftarUser.find(function (u) {
+        return u && u.emailAddress && String(u.emailAddress).toLowerCase() === email;
+      }) || null;
+    }
+
+    var token = null;
+    var tautan = null;
+
+    if (user) {
+      token = window.AuthUtil ? window.AuthUtil.buatToken() : String(Date.now()) + Math.random().toString(36).slice(2, 10);
+
+      var tokens = bersihkanTokenKedaluwarsa(bacaTokens());
+      // Hanya satu token aktif per email
+      tokens = tokens.filter(function (t) { return t && String(t.email) !== email; });
+      tokens.push({
+        token: token,
+        email: email,
+        userId: String(user.id),
+        expiresAt: Date.now() + MASA_BERLAKU_MS,
+        createdAt: Date.now()
+      });
+      simpanTokens(tokens);
+
+      tautan = buatTautan(token, email);
+
+      // Penanda akses sah: hanya diisi di sini, sehingga reset-password.html
+      // tahu bahwa kunjungan berasal dari alur "Kirim Tautan Reset".
+      // Disimpan di sessionStorage (hilang saat tab ditutup), dan berlaku
+      // untuk kedua jalur: email asli (Email.js) maupun tautan demo.
+      try {
+        sessionStorage.setItem('dikyResetAccess', token);
+      } catch (e) { }
+    }
+
+    var hasil;
+    if (window.EmailService && typeof window.EmailService.kirimLinkReset === 'function' && user) {
+      hasil = await window.EmailService.kirimLinkReset(email, tautan, user.fullName);
+    } else if (!user) {
+      // Email tidak terdaftar: jangan ungkapkan apa pun.
+      hasil = { ok: true, demo: true, tautan: null };
+    } else {
+      hasil = { ok: true, demo: true, tautan: tautan };
+    }
+
+    if (tombol) { tombol.disabled = false; tombol.textContent = 'Kirim Tautan Reset'; }
+
+    if (!hasil || !hasil.ok) {
+      tampilkanPesan((hasil && hasil.pesan) || 'Gagal memproses permintaan. Coba lagi.', 'error');
+      return;
+    }
+
+    // Pesan NETRAL (anti-enumeration): sama walau email tidak terdaftar.
+    tampilkanPesan(
+      'Jika email tersebut terdaftar, tautan untuk mereset kata sandi telah dikirim. Silakan periksa kotak masuk dan folder spam Anda.',
+      'success'
+    );
+
+    // Mode demo: tampilkan tautan asli agar bisa diuji tanpa email.
+    if (hasil.demo && tautan) {
+      var demo = el('forgot-demo');
+      var demoLink = el('forgot-demo-link');
+      if (demo && demoLink) {
+        demoLink.href = tautan;
+        demoLink.textContent = 'Buka halaman reset kata sandi (demo)';
+        demo.hidden = false;
+      }
+    }
+  }
+
+  function init() {
+    if (!el('forgot-modal')) return;
+
+    var btnLupa = el('forgot-password-button');
+    if (btnLupa) btnLupa.addEventListener('click', bukaModal);
+
+    var btnTutup = el('forgot-close');
+    if (btnTutup) btnTutup.addEventListener('click', tutupModal);
+
+    var form = el('forgot-form');
+    if (form) form.addEventListener('submit', kirimTautan);
+
+    var modal = el('forgot-modal');
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === modal) tutupModal();
+      });
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal && !modal.hidden) tutupModal();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  window.LupaSandi = { buka: bukaModal, tutup: tutupModal, MASA_BERLAKU_MS: MASA_BERLAKU_MS };
+}(window, document));

@@ -7,6 +7,7 @@
   <title>Manajemen Hutang - Warung Sayur Diky</title>
   <script src="session-gate.js"></script>
   <link rel="stylesheet" href="hutang.css" />
+  <link rel="stylesheet" href="hutang-tambahan.css" />
   <link rel="stylesheet" href="smart-guide-toast.css" />
 </head>
 <body>
@@ -54,6 +55,47 @@
       </article>
     </section>
 
+    <!-- Kalender Tagihan Bulanan (panel di halaman yang sama, collapsible) -->
+    <section class="calendar-panel" id="calendar-panel" aria-label="Kalender tagihan hutang">
+      <button class="calendar-toggle" id="calendar-toggle" type="button" aria-expanded="true"
+        aria-controls="calendar-body">
+        <span class="calendar-toggle-title">
+          <span class="calendar-icon" aria-hidden="true">📅</span>
+          <span>
+            <strong>Kalender Tagihan</strong>
+            <small id="calendar-toggle-hint">Lihat sisa hutang per tanggal &amp; total akhir bulan</small>
+          </span>
+        </span>
+        <span class="calendar-chevron" aria-hidden="true">▾</span>
+      </button>
+
+      <div class="calendar-body" id="calendar-body">
+        <div class="calendar-nav">
+          <button class="calendar-nav-btn" id="cal-prev" type="button" aria-label="Bulan sebelumnya">‹</button>
+          <h2 id="cal-title">—</h2>
+          <button class="calendar-nav-btn" id="cal-next" type="button" aria-label="Bulan berikutnya">›</button>
+        </div>
+
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span><span>Min</span>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+
+        <div class="calendar-legend">
+          <span><i class="dot dot-unpaid"></i> Belum lunas</span>
+          <span><i class="dot dot-paid"></i> Lunas</span>
+          <span><i class="dot dot-overdue"></i> Lewat jatuh tempo</span>
+          <span><i class="dot dot-month-end"></i> Akhir bulan</span>
+        </div>
+
+        <!-- Kartu rekap akhir bulan (pengingat + total, tidak mengubah status) -->
+        <div class="month-end-card" id="month-end-card"></div>
+
+        <!-- Detail transaksi tanggal terpilih -->
+        <div class="calendar-day-detail" id="calendar-day-detail" hidden></div>
+      </div>
+    </section>
+
     <!-- Pencarian & Filter -->
     <section class="toolbar" aria-label="Pencarian dan filter">
       <div class="search-field">
@@ -93,6 +135,118 @@
     </section>
   </main>
 
+  <!-- Modal: Cara Bayar — Pilih Item yang Ingin Dibayar -->
+  <div class="modal-overlay" id="pay-picker-modal" hidden>
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h2>Bayar Hutang</h2>
+        <button class="modal-close" data-close="pay-picker-modal" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="pay-intro">Centang item yang ingin Anda bayar sekarang. Anda boleh memilih sebagian item saja —
+          sisanya dapat dibayar nanti.</p>
+        <div class="pay-picker-list" id="pay-picker-list"></div>
+
+        <div class="pay-basket" id="pay-basket">
+          <div class="pay-basket-row">
+            <span id="pay-basket-count">0 item dipilih</span>
+            <strong id="pay-basket-total">Rp0</strong>
+          </div>
+          <button class="pay-continue-btn" id="pay-continue-btn" type="button" disabled>
+            💳 Lanjut ke Pembayaran
+          </button>
+        </div>
+        <p class="pay-note">Ongkos kirim otomatis mengikuti item produk dan tidak dapat dipilih terpisah.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Konfirmasi Pembayaran -->
+  <div class="modal-overlay" id="pay-confirm-modal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Konfirmasi Pembayaran</h2>
+        <button class="modal-close" data-close="pay-confirm-modal" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="pay-confirm-summary" id="pay-confirm-summary"></div>
+        <div class="form-row">
+          <span class="form-label">Metode Pembayaran</span>
+          <div class="payment-methods" id="payment-methods">
+
+            <label class="method-option pay-card pay-card--qris">
+              <input type="radio" name="pay-method" value="QRIS" checked />
+              <span class="pay-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 3h7v7H3V3zm2 2v3h3V5H5zm9-2h7v7h-7V3zm2 2v3h3V5h-3zM3 14h7v7H3v-7zm2 2v3h3v-3H5zm9-2h3v3h-3v-3zm5 0h2v2h-2v-2zm-5 5h2v2h-2v-2zm3 0h4v2h-4v-2zm2-2h2v2h-2v-2z"/>
+                </svg>
+              </span>
+              <span class="pay-card-body">
+                <span class="pay-card-title">QRIS</span>
+                <span class="pay-card-desc">Scan dengan GoPay, OVO, Dana, m-Banking</span>
+                <span class="pay-card-badge pay-card-badge--instant">⚡ Instan via Midtrans</span>
+              </span>
+              <span class="pay-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+              </span>
+            </label>
+
+            <label class="method-option pay-card pay-card--transfer">
+              <input type="radio" name="pay-method" value="Transfer Bank" />
+              <span class="pay-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9.5L12 4l9 5.5"/>
+                  <path d="M4 10v8M8 10v8M12 10v8M16 10v8M20 10v8"/>
+                  <path d="M2.5 20h19"/>
+                </svg>
+              </span>
+              <span class="pay-card-body">
+                <span class="pay-card-title">Transfer Bank</span>
+                <span class="pay-card-desc">BCA · Mandiri · BNI · BRI</span>
+                <span class="pay-card-badge pay-card-badge--instant">⚡ Virtual Account via Midtrans</span>
+              </span>
+              <span class="pay-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+              </span>
+            </label>
+
+            <label class="method-option pay-card pay-card--tunai">
+              <input type="radio" name="pay-method" value="Tunai" />
+              <span class="pay-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="6" width="20" height="12" rx="2" />
+                  <circle cx="12" cy="12" r="2.6" />
+                  <path d="M6 12h.01M18 12h.01" />
+                </svg>
+              </span>
+              <span class="pay-card-body">
+                <span class="pay-card-title">Tunai</span>
+                <span class="pay-card-desc">Bayar langsung ke kasir</span>
+                <span class="pay-card-badge">🏪 Diverifikasi Admin</span>
+              </span>
+              <span class="pay-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+              </span>
+            </label>
+
+          </div>
+
+          <p class="pay-trust-note">
+            <span aria-hidden="true">ⓘ</span>
+            QRIS &amp; Transfer Bank diproses aman oleh <strong>Midtrans</strong>. Tunai diverifikasi oleh Admin.
+          </p>
+        </div>
+        <div class="pay-detail" id="pay-detail"></div>
+        <p class="pay-note">Setelah konfirmasi, status akan menjadi <strong>Menunggu Verifikasi Admin</strong>.
+          Hutang baru resmi <strong>Lunas</strong> setelah admin memverifikasi.</p>
+        <div class="pay-confirm-actions">
+          <button class="button button-secondary" id="pay-back-btn" type="button">← Ubah Pilihan</button>
+          <button class="button button-primary" id="pay-submit-btn" type="button">Konfirmasi Pembayaran</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Cara Pembayaran (Informasi) -->
   <div class="modal-overlay" id="pay-modal" hidden>
     <div class="modal">
@@ -104,29 +258,57 @@
         <div class="pay-customer-info" id="pay-customer-info"></div>
         <div class="form-row">
           <span class="form-label">Cara Membayar kepada Admin</span>
-          <div class="payment-methods" id="payment-methods">
-            <label class="method-option">
-              <input type="radio" name="pay-method" value="QRIS" checked />
-              <span class="method-card">
-                <span class="method-icon">📱</span>
-                <span class="method-name">QRIS</span>
-                <span class="method-desc">Scan untuk bayar</span>
+          <div class="payment-methods" id="payment-methods-old">
+            <label class="method-option pay-card pay-card--qris">
+              <input type="radio" name="pay-method-old" value="QRIS" checked />
+              <span class="pay-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 3h7v7H3V3zm2 2v3h3V5H5zm9-2h7v7h-7V3zm2 2v3h3V5h-3zM3 14h7v7H3v-7zm2 2v3h3v-3H5zm9-2h3v3h-3v-3zm5 0h2v2h-2v-2zm-5 5h2v2h-2v-2zm3 0h4v2h-4v-2zm2-2h2v2h-2v-2z"/>
+                </svg>
+              </span>
+              <span class="pay-card-body">
+                <span class="pay-card-title">QRIS</span>
+                <span class="pay-card-desc">Scan dengan GoPay, OVO, Dana, m-Banking</span>
+                <span class="pay-card-badge pay-card-badge--instant">⚡ Instan via Midtrans</span>
+              </span>
+              <span class="pay-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
               </span>
             </label>
-            <label class="method-option">
-              <input type="radio" name="pay-method" value="Transfer Bank" />
-              <span class="method-card">
-                <span class="method-icon">🏦</span>
-                <span class="method-name">Transfer Bank</span>
-                <span class="method-desc">Transfer manual</span>
+            <label class="method-option pay-card pay-card--transfer">
+              <input type="radio" name="pay-method-old" value="Transfer Bank" />
+              <span class="pay-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9.5L12 4l9 5.5"/>
+                  <path d="M4 10v8M8 10v8M12 10v8M16 10v8M20 10v8"/>
+                  <path d="M2.5 20h19"/>
+                </svg>
+              </span>
+              <span class="pay-card-body">
+                <span class="pay-card-title">Transfer Bank</span>
+                <span class="pay-card-desc">BCA · Mandiri · BNI · BRI</span>
+                <span class="pay-card-badge pay-card-badge--instant">⚡ Virtual Account via Midtrans</span>
+              </span>
+              <span class="pay-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
               </span>
             </label>
-            <label class="method-option">
-              <input type="radio" name="pay-method" value="Tunai" />
-              <span class="method-card">
-                <span class="method-icon">💵</span>
-                <span class="method-name">Tunai</span>
-                <span class="method-desc">Bayar langsung</span>
+            <label class="method-option pay-card pay-card--tunai">
+              <input type="radio" name="pay-method-old" value="Tunai" />
+              <span class="pay-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="6" width="20" height="12" rx="2" />
+                  <circle cx="12" cy="12" r="2.6" />
+                  <path d="M6 12h.01M18 12h.01" />
+                </svg>
+              </span>
+              <span class="pay-card-body">
+                <span class="pay-card-title">Tunai</span>
+                <span class="pay-card-desc">Bayar langsung ke kasir</span>
+                <span class="pay-card-badge">🏪 Diverifikasi Admin</span>
+              </span>
+              <span class="pay-card-check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
               </span>
             </label>
           </div>
@@ -167,7 +349,9 @@
   <div class="toast" id="toast">Tersimpan</div>
 
   <script src="storage-helper.js?v=20261008b"></script>
+  <script src="satuan.js"></script>
   <script src="hutang.js?v=20261008b"></script>
+  <script src="hutang-bayar2.js?v=20261019c"></script>
   <script src="smart-guide-toast.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -176,3 +360,6 @@
   </script>
 </body>
 </html>
+
+<script src="midtrans-client.js"></script>
+<script src="hutang-midtrans.js?v=20261021a"></script>

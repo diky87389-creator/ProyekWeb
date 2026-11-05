@@ -368,3 +368,314 @@ button, .button, a.button { min-height: 44px; }
   .form-grid { grid-template-columns: 1fr !important; }
   .button, button { width: 100%; }
 }
+
+/* ============================================================
+   POPUP VERIFIKASI OTP — daftar.html
+   ============================================================ */
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.otp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(12, 35, 20, 0.55);
+  backdrop-filter: blur(3px);
+  animation: otp-fade 0.18s ease;
+}
+
+.otp-modal[hidden] {
+  display: none;
+}
+
+@keyframes otp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.otp-modal-card {
+  position: relative;
+  width: min(100%, 430px);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 1.6rem 1.4rem 1.4rem;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  animation: otp-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+@keyframes otp-pop {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.otp-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.7rem;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: #7a8e81;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.otp-close:hover {
+  background: #f0f5f1;
+  color: #2f4d38;
+}
+
+/* --- Kepala --- */
+.otp-head {
+  text-align: center;
+  margin-bottom: 1.1rem;
+}
+
+.otp-icon {
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  margin: 0 auto 0.65rem;
+  border-radius: 1rem;
+  background: #e6f5ea;
+  font-size: 1.55rem;
+}
+
+.otp-head h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.18rem;
+  color: #1f3826;
+}
+
+.otp-sub {
+  margin: 0;
+  font-size: 0.83rem;
+  color: #6b7f70;
+}
+
+.otp-email {
+  margin: 0.2rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2f7a49;
+  word-break: break-all;
+}
+
+/* --- Kotak demo --- */
+.otp-demo-box {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  background: #fff8e8;
+  border: 1px dashed #e8cb7d;
+  text-align: center;
+}
+
+.otp-demo-box[hidden] {
+  display: none;
+}
+
+.otp-demo-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #8a6414;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.otp-demo-code {
+  font-size: 1.85rem;
+  font-weight: 900;
+  letter-spacing: 0.45em;
+  color: #7a4a00;
+  padding-left: 0.45em;
+}
+
+.otp-demo-hint {
+  font-size: 0.7rem;
+  color: #9a7a3a;
+  line-height: 1.4;
+}
+
+/* --- Kotak digit --- */
+.otp-digits {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+
+.otp-digits input {
+  width: 100%;
+  height: 3.15rem;
+  padding: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-align: center;
+  color: #1f3826;
+  background: #f8fbf9;
+  border: 2px solid #d8e6dc;
+  border-radius: 11px;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.otp-digits input:focus {
+  background: #fff;
+  border-color: #3b8f58;
+  box-shadow: 0 0 0 3px rgba(59, 143, 88, 0.16);
+}
+
+.otp-digits input:not(:placeholder-shown) {
+  border-color: #a9d3b8;
+}
+
+/* --- Timer & pesan --- */
+.otp-timer {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  color: #6b7f70;
+}
+
+.otp-timer.is-expired {
+  color: #c0392b;
+}
+
+.otp-message {
+  margin: 0 0 0.8rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.otp-message[hidden] {
+  display: none;
+}
+
+.otp-message.is-info {
+  background: #eef6fb;
+  border: 1px solid #c8e0f0;
+  color: #1b5e8a;
+}
+
+.otp-message.is-error {
+  background: #fdecea;
+  border: 1px solid #f3c2bb;
+  color: #b42318;
+}
+
+.otp-message.is-success {
+  background: #e6f5ea;
+  border: 1px solid #b6e3c3;
+  color: #1b6b3f;
+}
+
+/* --- Tombol --- */
+.otp-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 0.55rem;
+}
+
+.otp-btn {
+  min-height: 2.85rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 11px;
+  border: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease, background-color 0.15s ease;
+}
+
+.otp-btn-primary {
+  color: #fff;
+  background: linear-gradient(135deg, #3b8f58, #2a6f43);
+}
+
+.otp-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.otp-btn-primary:disabled {
+  background: #c3d2c7;
+  cursor: not-allowed;
+}
+
+.otp-btn-ghost {
+  color: #3c6b4a;
+  background: #f2f7f3;
+  border: 1px solid #d5e6da;
+}
+
+.otp-btn-ghost:hover {
+  background: #e8f3ea;
+}
+
+.otp-resend {
+  display: block;
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.45rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2f7a49;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.otp-resend:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.otp-resend:disabled {
+  color: #a9b8ae;
+  cursor: not-allowed;
+}
+
+/* --- Mobile --- */
+@media (max-width: 420px) {
+  .otp-modal-card {
+    padding: 1.4rem 1rem 1.1rem;
+  }
+
+  .otp-digits {
+    gap: 0.3rem;
+  }
+
+  .otp-digits input {
+    height: 2.8rem;
+    font-size: 1.2rem;
+  }
+
+  .otp-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .otp-demo-code {
+    font-size: 1.55rem;
+    letter-spacing: 0.35em;
+  }
+}

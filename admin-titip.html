@@ -22,7 +22,11 @@
         <p class="eyebrow">Operasional pasar</p>
         <h1>Kelola Titipan</h1>
         <p class="muted">Titipan malam pelanggan untuk dibelikan di pasar besok pagi.</p>
-      </div><button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button>
+      </div>
+      <div class="page-actions">
+        <button id="refresh-button" class="button button-primary" type="button">↻ Muat Ulang</button>
+        <button id="archive-button" class="button button-light" type="button">⧉ Arsip Titipan (0)</button>
+      </div>
     </section>
 
     <section class="stats-grid" aria-label="Ringkasan titipan">
@@ -69,6 +73,7 @@
   </dialog>
 
   <script src="storage-helper.js"></script>
+  <script src="satuan.js"></script>
   <script src="titip-helper.js"></script>
   <script src="admin-titip.js"></script>
 </body>
