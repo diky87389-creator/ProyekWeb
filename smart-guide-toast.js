@@ -36,6 +36,8 @@
   // Urutan tahap dari paling awal ke paling lanjut. 'selesai' = tersembunyi.
   const STAGE_ORDER = ['keranjang', 'checkout', 'success', 'dikemas', 'dikirim'];
   const STAGE_PAGE = {
+    titip_checkout: 'titip.html',
+    titip_draft: 'titip.html',
     keranjang: 'keranjang.html',
     checkout: 'checkout.html',
     success: 'success.html',
@@ -83,7 +85,9 @@
         lastOrder: getUserStorageKey('lastOrder'),
         checkoutForm: getUserStorageKey('checkoutForm'),
         pesananAktif: getUserStorageKey('pesananAktif'),
-        pesananBaru: getUserStorageKey('pesananBaru')
+        pesananBaru: getUserStorageKey('pesananBaru'),
+        titipan: getUserStorageKey('titipan'),
+        titipanDraft: getUserStorageKey('titipanDraft')
       };
     },
 
@@ -188,6 +192,40 @@
     },
 
     /**
+     * Deteksi tahap khusus Titip Beli Sayur (titip.html):
+     *  - titip_checkout: admin sudah menekan "Kirim ke Checkout Pelanggan"
+     *    (status siap_checkout) dan pelanggan belum menekan "Checkout Sekarang".
+     *    Status dibatalkan / sebagian_habis (habis di pasar) sengaja TIDAK
+     *    dihitung karena tombol "Checkout Sekarang" memang tidak muncul.
+     *  - titip_draft: pelanggan sudah memilih sayur tetapi belum mengirim
+     *    daftar titipan ke admin. Bila semua itemnya dibuang ("Buang") atau
+     *    sudah dikirim, tahap ini tidak aktif.
+     */
+    detectTitipStage: function () {
+      const userKeys = this.getUserKeys() || {};
+
+      // A) Titipan yang sudah difinalisasi admin -> menunggu Checkout Sekarang.
+      const titipanRecords = this.readOrdersFromKey(userKeys.titipan, 'titipan');
+      const siapCheckout = titipanRecords.some(function (record) {
+        return String(record.status || '').trim().toLowerCase() === 'siap_checkout';
+      });
+      if (siapCheckout) return { stage: 'titip_checkout', tab: null, orderId: null };
+
+      // B) Daftar titipan yang dipilih tetapi belum dikirim ke admin.
+      if (userKeys.titipanDraft) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(userKeys.titipanDraft) || 'null');
+          const items = saved && (Array.isArray(saved) ? saved : saved.items);
+          if (Array.isArray(items) && items.length > 0) {
+            return { stage: 'titip_draft', tab: null, orderId: null };
+          }
+        } catch (error) { /* draft tidak dapat dibaca -> anggap tidak ada */ }
+      }
+
+      return null;
+    },
+
+    /**
      * Deteksi SATU tahap aktif pesanan (paling lanjut yang belum selesai).
      * Mengembalikan { stage, tab, orderId } atau null.
      */
@@ -232,12 +270,16 @@
         return { stage: 'checkout', tab: null, orderId: null };
       }
 
-      // 4) Tahap keranjang: cart ada.
+      // 4) Tahap Titip Beli Sayur: siap checkout atau draft belum dikirim.
+      const titipStage = this.detectTitipStage();
+      if (titipStage) return titipStage;
+
+      // 5) Tahap keranjang: cart ada.
       if (hasData(userKeys.cart)) {
         return { stage: 'keranjang', tab: null, orderId: null };
       }
 
-      // 5) Tidak ada tahap aktif (mis. semua pesanan sudah Selesai) -> null.
+      // 6) Tidak ada tahap aktif (mis. semua pesanan sudah Selesai) -> null.
       return null;
     },
 
@@ -335,6 +377,14 @@
           title = '🚚 Pesanan Dalam Pengiriman';
           message = 'Pesanan kamu sedang dikirim/siap diambil. Pantau statusnya sekarang.';
           break;
+        case 'titip_checkout':
+          title = '🧺 Titipan Siap di-Checkout';
+          message = 'Admin sudah mengisi harga pasar titipanmu. Kembali ke Titip Beli dan tekan "Checkout Sekarang".';
+          break;
+        case 'titip_draft':
+          title = '🛒 Daftar Titipan Belum Dikirim';
+          message = 'Kamu sudah memilih sayur untuk dititipkan tetapi belum mengirimnya ke admin.';
+          break;
         default:
           break;
       }
@@ -390,7 +440,8 @@
       if (stage === 'dikemas' || stage === 'dikirim') {
         sourceToken = 'smart_guide_orders';
         try { sessionStorage.setItem('dikySmartGuideOrderTab', this.state.tab || 'dikemas'); } catch (e) { }
-      } else if (stage === 'keranjang') sourceToken = 'smart_guide_keranjang';
+      } else if (stage === 'titip_draft' || stage === 'titip_checkout') sourceToken = 'smart_guide_titip';
+      else if (stage === 'keranjang') sourceToken = 'smart_guide_keranjang';
       else if (stage === 'checkout') sourceToken = 'smart_guide_checkout';
       else if (stage === 'success') sourceToken = 'smart_guide_success';
 
@@ -442,6 +493,7 @@
       key.startsWith('dikycart_') || key.startsWith('pesananaktif') ||
       key.startsWith('pesananbaru') || key.startsWith('dikycheckoutitems_') ||
       key.startsWith('dikylastorder_') || key.startsWith('dikylastposition_') ||
+      key.startsWith('dikytitipan_') || key.startsWith('dikytitipandraft_') ||
       ['cart', 'dikycart', 'keranjang'].includes(key)
     ) {
       SmartGuide.init();
